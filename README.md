@@ -134,6 +134,60 @@ CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} python run_experiment.py \
 
 **Replace dataset-specific arguments with those for CIFAR-100 or PET-37 as needed.**
 
+### :zap: Executing Baselines
+
+1. Coteaching: <https://github.com/bhanML/Co-teaching>
+2. Coteachingplus: <https://github.com/xingruiyu/coteaching_plus>
+3. JoCoR: <https://github.com/hongxin001/JoCoR>
+4. Cotta: <https://github.com/qinenergy/cotta>
+5. PLF: <https://github.com/tjy1423317192/PLF>
+
+```bib
+@inproceedings{han2018coteaching,
+  title = {Co-teaching: Robust training of deep neural networks with extremely noisy labels},
+  author = {Bo Han and Quanming Yao and Xingrui Yu and Gang Niu and Miao Xu and Weihua Hu and Ivor W. Tsang and Masashi Sugiyama},
+  booktitle = {NeurIPS},
+  year = {2018}
+}
+
+@inproceedings{co-teaching+,
+  title={How does disagreement help generalization against label corruption?},
+  author={Yu, Xingrui and Han, Bo and Yao, Jiangchao and Niu, Gang and Tsang, Ivor and Sugiyama, Masashi},
+  booktitle={International conference on machine learning},
+  pages={7164--7173},
+  year={2019},
+  organization={PMLR}
+}
+
+@inproceedings{JoCoR,
+  title={Combating noisy labels by agreement: A joint training method with co-regularization},
+  author={Wei, Hongxin and Feng, Lei and Chen, Xiangyu and An, Bo},
+  booktitle={Proceedings of the IEEE/CVF conference on computer vision and pattern recognition},
+  pages={13726--13735},
+  year={2020}
+}
+
+@inproceedings{cotta,
+  title={Continual test-time domain adaptation},
+  author={Wang, Qin and Fink, Olga and Van Gool, Luc and Dai, Dengxin},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  pages={7201--7211},
+  year={2022}
+}
+
+@misc{plf,
+      title={Less is More: Pseudo-Label Filtering for Continual Test-Time Adaptation}, 
+      author={Jiayao Tan and Fan Lyu and Chenggong Ni and Tingliang Feng and Fuyuan Hu and Zhang Zhang and Shaochuang Zhao and Liang Wang},
+      year={2024},
+      eprint={2406.02609},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2406.02609}, 
+}
+
+
+```
+
 ### :bar_chart: Evaluation
 
 After training, you can evaluate results by checking the generated data and trained models.
