@@ -3,7 +3,7 @@
 
 <div align="center">
 
- [:sparkles: Overview](#sparkles-overview) | [:computer: Usage](#computer-usage) | [:link: License](#link-License)
+ [:sparkles: Overview](#sparkles-overview) | [:computer: Usage](#computer-usage) | [:link: License](#scroll-license)
 
 <div align="left">
 
@@ -32,8 +32,8 @@ conda activate ${env_name}
 
 This project supports the following datasets:
 
-1. **CIFAR-10**: 
-   - A dataset containing 60,000 32x32 color images in 10 classes, with 6,000 images per class. 
+1. **CIFAR-10**:
+   - A dataset containing 60,000 32x32 color images in 10 classes, with 6,000 images per class.
    - Directory structure:
      - `data/cifar-10/normal/`: Contains the original dataset.
      - `data/cifar-10/gen/`: Stores generated datasets with noise.
@@ -197,13 +197,124 @@ After training, you can evaluate results by checking the generated data and trai
 tree data/cifar-10/gen/
 tree data/cifar-100/gen/
 tree data/pet-37/gen/
+```
 
+For example, when generating experimental datasets based on the CIFAR-100 dataset, the resulting datasets are as follows:
+
+```bash
+$ ll data/cifar-100/gen/nr_0.2_nt_symmetric_balanced/
+D_0_labels.npy
+D_0.npy
+D_a_labels.npy
+D_a.npy
+D_inc_0_data.npy
+D_inc_0_labels.npy
+D_tr_data_version_1.npy
+D_tr_data_version_2.npy
+D_tr_data_version_3.npy
+D_tr_labels_version_1.npy
+D_tr_labels_version_2.npy
+D_tr_labels_version_3.npy
+test_data.npy
+test_labels.npy
+train_data.npy
+train_labels.npy
+```
+
+In the directory name `nr_0.2_nt_symmetric_balanced`, `nr` stands for noise ratio, `nt` stands for noise type (which is symmetric in this case), and `balanced` indicates that the classes chosen for noise injection are balanced.
+
+```bash
 # Check trained model checkpoints
-tree ckpt/cifar-10/nr_0.2_nt_symmetric/
 tree ckpt/cifar-100/nr_0.2_nt_symmetric/
+# or 
+tree ckpt/cifar-10/nr_0.2_nt_symmetric/
+# or
 tree ckpt/pet-37/nr_0.2_nt_symmetric/
 ```
 
-### :scroll: License
+For example, when training models on the CIFAR-100 dataset, the resulting models are as follows:
+
+```bash
+...[..nr_0.2_nt_symmetric_balanced]$ tree
+.
+├── step_0
+│    ├── contra
+│    │    ├── cifar-wideresnet40_teacher_restore.pth
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── coteaching
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── coteaching_plus
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── cotta
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── jocor
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── plf
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    └── replay
+│        └── cifar-wideresnet40_worker_restore.pth
+├── step_1
+│    ├── contra
+│    │    ├── cifar-wideresnet40_teacher_restore.pth
+│    │    ├── cifar-wideresnet40_teacher_tta.pth
+│    │    ├── cifar-wideresnet40_worker_raw.pth
+│    │    ├── cifar-wideresnet40_worker_restore.pth
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    ├── coteaching
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── coteaching_plus
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── cotta
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    ├── jocor
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── plf
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    └── replay
+│        ├── cifar-wideresnet40_worker_raw.pth
+│        └── cifar-wideresnet40_worker_restore.pth
+├── step_2
+│    ├── contra
+│    │    ├── cifar-wideresnet40_teacher_restore.pth
+│    │    ├── cifar-wideresnet40_teacher_tta.pth
+│    │    ├── cifar-wideresnet40_worker_raw.pth
+│    │    ├── cifar-wideresnet40_worker_restore.pth
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    ├── coteaching
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── coteaching_plus
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── cotta
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    ├── jocor
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── plf
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    └── replay
+│        └── cifar-wideresnet40_worker_restore.pth
+└── step_3
+    ├── contra
+    │    ├── cifar-wideresnet40_teacher_restore.pth
+    │    ├── cifar-wideresnet40_teacher_tta.pth
+    │    ├── cifar-wideresnet40_worker_raw.pth
+    │    ├── cifar-wideresnet40_worker_restore.pth
+    │    └── cifar-wideresnet40_worker_tta.pth
+    ├── coteaching
+    │    └── cifar-wideresnet40_worker_restore.pth
+    ├── coteaching_plus
+    │    └── cifar-wideresnet40_worker_restore.pth
+    ├── cotta
+    │    └── cifar-wideresnet40_worker_tta.pth
+    ├── jocor
+    │    └── cifar-wideresnet40_worker_restore.pth
+    ├── plf
+    │    └── cifar-wideresnet40_worker_tta.pth
+    └── replay
+        └── cifar-wideresnet40_worker_restore.pth
+
+
+```
+
+## :scroll: License
 
 This repository is released under the MIT license.
