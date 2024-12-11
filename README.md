@@ -223,6 +223,13 @@ train_labels.npy
 
 In the directory name `nr_0.2_nt_symmetric_balanced`, `nr` stands for noise ratio, `nt` stands for noise type (which is symmetric in this case), and `balanced` indicates that the classes chosen for noise injection are balanced.
 
+We provide the following figures to show verify the correctness of dataset generation logics.
+
+<img src="assets/1_label_dist.png" width="100%" style="border: none;"></img>
+<img src="assets/2_label_dist_with_asy_noise.png" width="100%" style="border: none;"></img>
+<img src="assets/3_label_dist_with_sy_noise.png" width="100%" style="border: none;"></img>
+
+
 ```bash
 # Check trained model checkpoints
 tree ckpt/cifar-100/nr_0.2_nt_symmetric/
