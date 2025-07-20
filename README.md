@@ -1,6 +1,6 @@
 # <!--CONTRA: A Continual Restoration and Adaptation Learning Framework for Ever-robust Online Image Recognition and Search-->
 
-# CONTRA: A Continual Train, Refinement and Adaptation Framework for Building Ever-robust Web Image Recognition Systems
+# CONTRA: A Continual Train, Refinement and Adaptation Framework for Building Ever-robust Image Recognition Systems
 
 <div align="center">
 
