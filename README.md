@@ -11,7 +11,7 @@
 <!-- ADD WARNING: Only the core code is retained. If needed, we can provide Jupyter notebooks for baseline reproduction and result analysis, as well as pre-trained models. -->
 ## :sparkles: Overview
 
-[📄 **Framework diagram (PDF)**](assets/framework.pdf)
+<img src="assets/framework_01.png" width="100%" style="border: none;" alt="CONTRA framework overview" />
 
 This repository provides a framework for noise-robust training and incremental learning with datasets such as CIFAR-10, CIFAR-100, and Oxford-IIIT Pet (PET-37). The project demonstrates robust model training under various noisy label conditions and supports multiple training modes, including raw training and incremental training.
 
