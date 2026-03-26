@@ -139,8 +139,43 @@ CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} python run_experiment.py \
 1. Coteaching: <https://github.com/bhanML/Co-teaching>
 2. Coteachingplus: <https://github.com/xingruiyu/coteaching_plus>
 3. JoCoR: <https://github.com/hongxin001/JoCoR>
-4. Cotta: <https://github.com/qinenergy/cotta>
-5. PLF: <https://github.com/tjy1423317192/PLF>
+4. DivideMix: <https://github.com/LiJunnan1992/DivideMix>
+5. Cotta: <https://github.com/qinenergy/cotta>
+6. PLF: <https://github.com/tjy1423317192/PLF>
+7. SoTTA: <https://github.com/taeckyung/SoTTA>
+
+**LNL baselines** (Co-teaching, Co-teaching+, JoCoR, DivideMix) share the same entry point under `baseline_code/colearn/`:
+
+```bash
+# DivideMix (LNL baseline, GMM + MixMatch)
+CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} PYTHONPATH=${code_base} \
+python baseline_code/colearn/main.py \
+--step 1 \
+--model cifar-wideresnet40 \
+--dataset cifar-10 \
+--noise_ratio 0.2 \
+--noise_type symmetric \
+--balanced \
+--num_epochs 15 \
+--batch_size 128 \
+--uni_name DivideMix
+```
+
+**TTA baselines** (CoTTA, PLF, SoTTA) each have an independent entry script:
+
+```bash
+# SoTTA (TTA baseline, HUS + ESM)
+CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} PYTHONPATH=${code_base} \
+python baseline_code/sotta/run_sotta.py \
+--step 1 \
+--model cifar-wideresnet40 \
+--dataset cifar-10 \
+--noise_ratio 0.2 \
+--noise_type symmetric \
+--balanced \
+--batch_size 200 \
+--uni_name SoTTA
+```
 
 ```bib
 @inproceedings{han2018coteaching,
@@ -167,6 +202,13 @@ CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} python run_experiment.py \
   year={2020}
 }
 
+@inproceedings{dividemix,
+  title={DivideMix: Learning with Noisy Labels as Semi-Supervised Learning},
+  author={Li, Junnan and Socher, Richard and Hoi, Steven C.H.},
+  booktitle={International Conference on Learning Representations},
+  year={2020}
+}
+
 @inproceedings{cotta,
   title={Continual test-time domain adaptation},
   author={Wang, Qin and Fink, Olga and Van Gool, Luc and Dai, Dengxin},
@@ -185,6 +227,12 @@ CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} python run_experiment.py \
       url={https://arxiv.org/abs/2406.02609}, 
 }
 
+@inproceedings{gong2023sotta,
+  title={SoTTA: Robust Test-Time Adaptation on Noisy Data Streams},
+  author={Gong, Taesik and Jeong, Jongheon and Kim, Taewon and Kim, Yewon and Shin, Jinwoo and Lee, Sung-Ju},
+  booktitle={Advances in Neural Information Processing Systems},
+  year={2023}
+}
 
 ```
 
@@ -252,11 +300,15 @@ For example, when training models on the CIFAR-100 dataset, the resulting models
 │    │    └── cifar-wideresnet40_worker_restore.pth
 │    ├── coteaching_plus
 │    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── dividemix
+│    │    └── cifar-wideresnet40_worker_restore.pth
 │    ├── cotta
 │    │    └── cifar-wideresnet40_worker_restore.pth
 │    ├── jocor
 │    │    └── cifar-wideresnet40_worker_restore.pth
 │    ├── plf
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── sotta
 │    │    └── cifar-wideresnet40_worker_restore.pth
 │    └── replay
 │        └── cifar-wideresnet40_worker_restore.pth
@@ -271,11 +323,15 @@ For example, when training models on the CIFAR-100 dataset, the resulting models
 │    │    └── cifar-wideresnet40_worker_restore.pth
 │    ├── coteaching_plus
 │    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── dividemix
+│    │    └── cifar-wideresnet40_worker_restore.pth
 │    ├── cotta
 │    │    └── cifar-wideresnet40_worker_tta.pth
 │    ├── jocor
 │    │    └── cifar-wideresnet40_worker_restore.pth
 │    ├── plf
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    ├── sotta
 │    │    └── cifar-wideresnet40_worker_tta.pth
 │    └── replay
 │        ├── cifar-wideresnet40_worker_raw.pth
@@ -291,11 +347,15 @@ For example, when training models on the CIFAR-100 dataset, the resulting models
 │    │    └── cifar-wideresnet40_worker_restore.pth
 │    ├── coteaching_plus
 │    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── dividemix
+│    │    └── cifar-wideresnet40_worker_restore.pth
 │    ├── cotta
 │    │    └── cifar-wideresnet40_worker_tta.pth
 │    ├── jocor
 │    │    └── cifar-wideresnet40_worker_restore.pth
 │    ├── plf
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    ├── sotta
 │    │    └── cifar-wideresnet40_worker_tta.pth
 │    └── replay
 │        └── cifar-wideresnet40_worker_restore.pth
@@ -310,11 +370,15 @@ For example, when training models on the CIFAR-100 dataset, the resulting models
     │    └── cifar-wideresnet40_worker_restore.pth
     ├── coteaching_plus
     │    └── cifar-wideresnet40_worker_restore.pth
+    ├── dividemix
+    │    └── cifar-wideresnet40_worker_restore.pth
     ├── cotta
     │    └── cifar-wideresnet40_worker_tta.pth
     ├── jocor
     │    └── cifar-wideresnet40_worker_restore.pth
     ├── plf
+    │    └── cifar-wideresnet40_worker_tta.pth
+    ├── sotta
     │    └── cifar-wideresnet40_worker_tta.pth
     └── replay
         └── cifar-wideresnet40_worker_restore.pth

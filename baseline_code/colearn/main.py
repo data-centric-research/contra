@@ -54,6 +54,7 @@ def main():
         "Coteachingplus": "co_configs.coteachingplus",
         "Coteaching": "co_configs.coteaching",
         "JoCoR": "co_configs.jocor",
+        "DivideMix": "co_configs.dividemix",
     }
 
     if uni_name not in config_modules:
@@ -82,6 +83,13 @@ def main():
         train_mode = "train_single"
     elif config["algorithm"] == "JoCoR":
         model = algorithms.JoCoR(
+            config,
+            input_channel=config["input_channel"],
+            num_classes=num_classes,
+        )
+        train_mode = "train_single"
+    elif config["algorithm"] == "DivideMix":
+        model = algorithms.DivideMix(
             config,
             input_channel=config["input_channel"],
             num_classes=num_classes,

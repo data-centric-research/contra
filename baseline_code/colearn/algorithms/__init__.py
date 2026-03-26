@@ -10,7 +10,8 @@ from .ELR import ELR
 from .GJS import GJS
 from .NL import NegtiveLearning
 from .PENCIL import PENCIL
+from .DivideMix import DivideMix
 
 __all__ = ('StandardCE', 'Decoupling', 'Colearning', 'Coteaching', 'Coteachingplus', 'JoCoR',
            "NegtiveLearning", "PENCIL",
-           'DISC', 'ELR', 'GJS')
+           'DISC', 'ELR', 'GJS', 'DivideMix')
