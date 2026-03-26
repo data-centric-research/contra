@@ -59,8 +59,8 @@ def create_pet37_npy_files(
     gen_dir,
     noise_type="symmetric",
     noise_ratio=0.2,
-    num_versions=3,
-    retention_ratios=[0.5, 0.3, 0.1],
+    num_versions=4,
+    retention_ratios=[0.5, 0.3, 0.1, 0.05],
     balanced=False,
 ):
 
@@ -278,14 +278,14 @@ def main():
     parser.add_argument(
         "--num_versions",
         type=int,
-        default=3,
-        help="Number of incremental versions to generate (default 3)",
+        default=4,
+        help="Number of incremental versions to generate (default 4)",
     )
     parser.add_argument(
         "--retention_ratios",
         type=float,
         nargs="+",
-        default=[0.5, 0.3, 0.1],
+        default=[0.5, 0.3, 0.1, 0.05],
         help="List of retention ratios for each incremental version",
     )
     parser.add_argument(

@@ -62,8 +62,8 @@ PYTHONPATH=${code_base} python gen_dataset/gen_cifar100_exp_data.py \
 --gen_dir ./data/cifar-100/gen/ \
 --noise_type symmetric \
 --noise_ratio 0.2 \
---num_versions 3 \
---retention_ratios 0.5 0.3 0.1 \
+--num_versions 4 \
+--retention_ratios 0.5 0.3 0.1 0.05 \
 --balanced
 ```
 
@@ -130,7 +130,7 @@ CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} python run_experiment.py \
 --load_model_path ckpt/cifar-10/nr_0.2_nt_symmetric/model_p0.pth
 ```
 
-- Repeat for Steps 2 and 3 using the appropriate dataset and retention ratios.
+- Repeat for Steps 2, 3 and 4 using the appropriate dataset and retention ratios.
 
 **Replace dataset-specific arguments with those for CIFAR-100 or PET-37 as needed.**
 
@@ -260,9 +260,11 @@ D_inc_0_labels.npy
 D_tr_data_version_1.npy
 D_tr_data_version_2.npy
 D_tr_data_version_3.npy
+D_tr_data_version_4.npy
 D_tr_labels_version_1.npy
 D_tr_labels_version_2.npy
 D_tr_labels_version_3.npy
+D_tr_labels_version_4.npy
 test_data.npy
 test_labels.npy
 train_data.npy
@@ -359,7 +361,30 @@ For example, when training models on the CIFAR-100 dataset, the resulting models
 │    │    └── cifar-wideresnet40_worker_tta.pth
 │    └── replay
 │        └── cifar-wideresnet40_worker_restore.pth
-└── step_3
+├── step_3
+│    ├── contra
+│    │    ├── cifar-wideresnet40_teacher_restore.pth
+│    │    ├── cifar-wideresnet40_teacher_tta.pth
+│    │    ├── cifar-wideresnet40_worker_raw.pth
+│    │    ├── cifar-wideresnet40_worker_restore.pth
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    ├── coteaching
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── coteaching_plus
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── dividemix
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── cotta
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    ├── jocor
+│    │    └── cifar-wideresnet40_worker_restore.pth
+│    ├── plf
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    ├── sotta
+│    │    └── cifar-wideresnet40_worker_tta.pth
+│    └── replay
+│        └── cifar-wideresnet40_worker_restore.pth
+└── step_4
     ├── contra
     │    ├── cifar-wideresnet40_teacher_restore.pth
     │    ├── cifar-wideresnet40_teacher_tta.pth
