@@ -1,6 +1,4 @@
-# <!--CONTRA: A Continual Restoration and Adaptation Learning Framework for Ever-robust Online Image Recognition and Search-->
-
-# CONTRA: A Continual Train, Refinement and Adaptation Framework for Building Ever-robust Image Recognition Systems
+# CONTRA: A Continual Train, Refinement and Adaptation Framework for Building Robust Web Image Recognition Systems
 
 <div align="center">
 
@@ -8,22 +6,42 @@
 
 <div align="left">
 
-<!-- ADD WARNING: Only the core code is retained. If needed, we can provide Jupyter notebooks for baseline reproduction and result analysis, as well as pre-trained models. -->
+## Manuscript (ICANN submission bundle)
+
+When this repo lives under `thesis/papers/ICANN/contra-ijcnn-v2/contra/`, the LaTeX sources for the **same** work are in the parent folder:
+
+- Main paper: `../contra.tex`
+- Supplementary: `../suppl.tex`
+
+Anonymous code drop (as cited in the paper): **https://anonymous.4open.science/r/contra-F8A5**
+
+Reproduction defaults below are aligned with the **main tables** where applicable (20% label noise, batch size 128, Mixup α=0.4). Large-scale WebVision / Food-101 numbers and extra analyses are described in the supplementary PDF.
+
 ## :sparkles: Overview
 
 <img src="assets/framework_01.png" width="100%" style="border: none;" alt="CONTRA framework overview" />
 
-This repository provides a framework for noise-robust training and incremental learning with datasets such as CIFAR-10, CIFAR-100, and Oxford-IIIT Pet (PET-37). The project demonstrates robust model training under various noisy label conditions and supports multiple training modes, including raw training and incremental training.
+This repository provides training code for noise-robust **incremental** learning and adaptation on CIFAR-10, CIFAR-100, Oxford-IIIT Pet (Pet-37), and optional Food-101-style setups (`run_experiment.py`). It matches the **CONTRA** method in the manuscript: rehearsal buffer, teacher–student refinement with spectral normalization on the teacher, and request-time adaptation (see paper for the full protocol and G1/G2 baseline grouping).
 
 ## :computer: Usage
 
 ### :rainbow: Create Environment
 
-Create and activate a virtual environment with the required dependencies:
+Install dependencies (Python 3.10+ recommended):
 
 ```bash
-conda create -n ${env_name} -r requirements.txt
-conda activate ${env_name}
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Unix:    source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Alternatively, create a Conda env and then install from `requirements.txt`:
+
+```bash
+conda create -n contra python=3.10 -y
+conda activate contra
+pip install -r requirements.txt
 ```
 
 ### :rocket: Prepare Dataset
@@ -54,85 +72,99 @@ This project supports the following datasets:
 
 You can generate datasets with symmetric or asymmetric label noise for any supported dataset by running the provided scripts.
 
-**Example command for CIFAR-100 (symmetric noise):**
+**Example: CIFAR-100 with symmetric noise** (usable for some experiments):
 
 ```bash
-PYTHONPATH=${code_base} python gen_dataset/gen_cifar100_exp_data.py \
---data_dir ./data/cifar-100/normal \
---gen_dir ./data/cifar-100/gen/ \
---noise_type symmetric \
---noise_ratio 0.2 \
---num_versions 4 \
---retention_ratios 0.5 0.3 0.1 0.05 \
---balanced
+PYTHONPATH=. python gen_dataset/gen_cifar100_exp_data.py \
+  --data_dir ./data/cifar-100/normal \
+  --gen_dir ./data/cifar-100/gen/ \
+  --noise_type symmetric \
+  --noise_ratio 0.2 \
+  --num_versions 4 \
+  --retention_ratios 0.5 0.3 0.1 0.05 \
+  --balanced
 ```
 
-**Replace `--data_dir` and `--gen_dir` with paths for CIFAR-10 or PET-37 as needed.**
+**Example: CIFAR-100 with asymmetric noise** (retrieval experiments in the main paper use **asymmetric** 20% noise):
+
+```bash
+PYTHONPATH=. python gen_dataset/gen_cifar100_exp_data.py \
+  --data_dir ./data/cifar-100/normal \
+  --gen_dir ./data/cifar-100/gen/ \
+  --noise_type asymmetric \
+  --noise_ratio 0.2 \
+  --num_versions 4 \
+  --retention_ratios 0.5 0.3 0.1 0.05 \
+  --balanced
+```
+
+**Replace `--data_dir` and `--gen_dir` with paths for CIFAR-10 or PET-37 as needed.** Main paper: **symmetric** noise for CIFAR-10 / Pet classification tables; **asymmetric** for CIFAR-100 / Pet retrieval tables.
 
 ### :fire: Training Models
 
+#### Paper-aligned backbones (`--model`)
+
+| Dataset (main paper) | Backbone reported in paper | Typical `--model` in this repo |
+|----------------------|-----------------------------|--------------------------------|
+| CIFAR-10 (classification) | ResNet-18 | `cifar-resnet18` |
+| CIFAR-100 (retrieval) | WideResNet-40-2 | `cifar-wideresnet40` |
+| Oxford-IIIT Pet | WideResNet-50-2 | `wideresnet50` |
+
+Incremental stages load the previous checkpoint from `ckpt/` automatically (via `configs/settings`); there is **no** `--load_model_path` in `run_experiment.py`—run **step 0 before step 1**, etc.
+
 #### :zap: Training Modes
 
-The framework supports the following training modes across all datasets:
+1. **Raw Training** (`step -1`): train on the non-incremental split (optional baseline).
 
-1. **Raw Training**: Train models on datasets with no incremental steps.
-
-**Example command for CIFAR-100:**
+**CIFAR-100 example** (adjust `--noise_type` to `asymmetric` for retrieval-style data):
 
 ```bash
-CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} python run_experiment.py \
---step -1 \
---model cifar-wideresnet40 \
---dataset cifar-100 \
---noise_ratio 0.2 \
---noise_type symmetric \
---balanced \
---epoch 200 \
---learning_rate 0.05 \
---optimizer adam \
---batch_size 256
+CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
+  --step -1 \
+  --model cifar-wideresnet40 \
+  --dataset cifar-100 \
+  --noise_ratio 0.2 \
+  --noise_type asymmetric \
+  --balanced \
+  --num_epochs 200 \
+  --learning_rate 0.05 \
+  --optimizer adam \
+  --batch_size 128
 ```
 
-2. **Incremental Training**: Train models incrementally on noisy datasets.
+2. **Incremental Training**: `step 0` … `step 4` on generated `D_inc` / rehearsal splits.
 
-**Example commands for CIFAR-10 (symmetric noise):**
-
-- Step 0: Train M_p0
+**CIFAR-10 (symmetric noise), paper-style backbone:**
 
 ```bash
-CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} python run_experiment.py \
---step 0 \
---model cifar-wideresnet40 \
---dataset cifar-10 \
---noise_ratio 0.2 \
---noise_type symmetric \
---balanced \
---epoch 50 \
---learning_rate 0.05 \
---optimizer adam \
---batch_size 256
+# Step 0 — train M at stage 0
+CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
+  --step 0 \
+  --model cifar-resnet18 \
+  --dataset cifar-10 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --num_epochs 50 \
+  --learning_rate 0.05 \
+  --optimizer adam \
+  --batch_size 128
+
+# Step 1 — requires ckpt from step 0 under ckpt/cifar-10/.../cifar-resnet18/...
+CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
+  --step 1 \
+  --model cifar-resnet18 \
+  --dataset cifar-10 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --num_epochs 50 \
+  --learning_rate 0.05 \
+  --optimizer adam \
+  --batch_size 128
 ```
 
-- Step 1: Train M_p1
-
-```bash
-CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} python run_experiment.py \
---step 1 \
---model cifar-wideresnet40 \
---dataset cifar-10 \
---noise_ratio 0.2 \
---noise_type symmetric \
---balanced \
---epoch 50 \
---learning_rate 0.05 \
---optimizer adam \
---batch_size 256 \
---load_model_path ckpt/cifar-10/nr_0.2_nt_symmetric/model_p0.pth
-```
-
-- Repeat for Steps 2, 3 and 4 using the appropriate dataset and retention ratios.
-
-**Replace dataset-specific arguments with those for CIFAR-100 or PET-37 as needed.**
+Repeat for steps 2–4. For **Pet-37**, use `--dataset pet-37` and `--model wideresnet50` (and matching generated data). For **CIFAR-100** retrieval experiments, use `--noise_type asymmetric` and `--model cifar-wideresnet40`.
 
 ### :zap: Executing Baselines
 
@@ -147,34 +179,34 @@ CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} python run_experiment.py \
 **LNL baselines** (Co-teaching, Co-teaching+, JoCoR, DivideMix) share the same entry point under `baseline_code/colearn/`:
 
 ```bash
-# DivideMix (LNL baseline, GMM + MixMatch)
-CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} PYTHONPATH=${code_base} \
-python baseline_code/colearn/main.py \
---step 1 \
---model cifar-wideresnet40 \
---dataset cifar-10 \
---noise_ratio 0.2 \
---noise_type symmetric \
---balanced \
---num_epochs 15 \
---batch_size 128 \
---uni_name DivideMix
+# DivideMix (LNL baseline, GMM + MixMatch) — use same --model as CONTRA for fair comparison
+CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. \
+  python baseline_code/colearn/main.py \
+  --step 1 \
+  --model cifar-resnet18 \
+  --dataset cifar-10 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --num_epochs 15 \
+  --batch_size 128 \
+  --uni_name DivideMix
 ```
 
 **TTA baselines** (CoTTA, PLF, SoTTA) each have an independent entry script:
 
 ```bash
 # SoTTA (TTA baseline, HUS + ESM)
-CUDA_VISIBLE_DEVICES=${CUDA_DEVICE_NUM} PYTHONPATH=${code_base} \
-python baseline_code/sotta/run_sotta.py \
---step 1 \
---model cifar-wideresnet40 \
---dataset cifar-10 \
---noise_ratio 0.2 \
---noise_type symmetric \
---balanced \
---batch_size 200 \
---uni_name SoTTA
+CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. \
+  python baseline_code/sotta/run_sotta.py \
+  --step 1 \
+  --model cifar-resnet18 \
+  --dataset cifar-10 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --batch_size 128 \
+  --uni_name SoTTA
 ```
 
 ```bib
@@ -289,7 +321,7 @@ tree ckpt/cifar-10/nr_0.2_nt_symmetric/
 tree ckpt/pet-37/nr_0.2_nt_symmetric/
 ```
 
-For example, when training models on the CIFAR-100 dataset, the resulting models are as follows:
+For example, when training models on the CIFAR-100 dataset, the resulting models are as follows (directory names include your `--model` choice, e.g. `cifar-wideresnet40` or `cifar-resnet18`):
 
 ```bash
 ...[..nr_0.2_nt_symmetric_balanced]$ tree

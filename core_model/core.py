@@ -181,7 +181,7 @@ def iterate_repair_model(
         mean=mean,
         std=std,
         batch_size=args.batch_size,
-        alpha=0.2,
+        alpha=args.mixup_alpha,
         transforms=None,
     )
 
@@ -258,7 +258,7 @@ def iterate_adapt_model(
         mean=mean,
         std=std,
         batch_size=args.batch_size,
-        alpha=0.2,
+        alpha=args.mixup_alpha,
         transforms=None,
     )
 
@@ -289,7 +289,7 @@ def iterate_adapt_model(
         mean=mean,
         std=std,
         batch_size=args.batch_size,
-        alpha=0.2,
+        alpha=args.mixup_alpha,
         transforms=None,
     )
 

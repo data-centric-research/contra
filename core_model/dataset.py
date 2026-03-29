@@ -77,7 +77,7 @@ class MixupDataset(Dataset):
         self,
         data_pair,
         label_pair,
-        mixup_alpha=0.2,
+        mixup_alpha=0.4,
         transforms=None,
         mean=None,
         std=None,
