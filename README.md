@@ -6,17 +6,6 @@
 
 <div align="left">
 
-## Manuscript (ICANN submission bundle)
-
-When this repo lives under `thesis/papers/ICANN/contra-ijcnn-v2/contra/`, the LaTeX sources for the **same** work are in the parent folder:
-
-- Main paper: `../contra.tex`
-- Supplementary: `../suppl.tex`
-
-Anonymous code drop (as cited in the paper): **https://anonymous.4open.science/r/contra-F8A5**
-
-Reproduction defaults below are aligned with the **main tables** where applicable (20% label noise, batch size 128, Mixup α=0.4). Large-scale WebVision / Food-101 numbers and extra analyses are described in the supplementary PDF.
-
 ## :sparkles: Overview
 
 <img src="assets/framework_01.png" width="100%" style="border: none;" alt="CONTRA framework overview" />
@@ -208,7 +197,7 @@ CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. \
   --batch_size 128 \
   --uni_name SoTTA
 ```
-
+<!-- 
 ```bib
 @inproceedings{han2018coteaching,
   title = {Co-teaching: Robust training of deep neural networks with extremely noisy labels},
@@ -266,7 +255,7 @@ CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. \
   year={2023}
 }
 
-```
+``` -->
 
 ### :bar_chart: Evaluation
 
