@@ -12,11 +12,13 @@
 
 This repository provides training code for noise-robust **incremental** learning and adaptation on CIFAR-10, CIFAR-100, Oxford-IIIT Pet (Pet-37), and optional Food-101-style setups (`run_experiment.py`). It matches the **CONTRA** method in the manuscript: rehearsal buffer, teacher–student refinement with spectral normalization on the teacher, and request-time adaptation (see paper for the full protocol and G1/G2 baseline grouping).
 
+The released scripts directly cover the CIFAR and Pet experiments. The compact Food-101/WebVision checks reported in the paper use the same tensor-based data interface after local dataset preprocessing.
+
 ## :computer: Usage
 
 ### :rainbow: Create Environment
 
-Install dependencies (Python 3.10+ recommended):
+Install dependencies (Python 3.10 recommended):
 
 ```bash
 python -m venv .venv
