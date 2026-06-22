@@ -460,7 +460,7 @@ class TransformFixMatchLarge(object):
             transforms.RandomCrop(size=224,
                                   padding=int(224*0.125),
                                   padding_mode='reflect'),
-            RandAugmentwogeo(n=2, m=10)]) #TODO 2,10
+            RandAugmentwogeo(n=2, m=10)])  # Default baseline strength.
         self.normalize = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std)])

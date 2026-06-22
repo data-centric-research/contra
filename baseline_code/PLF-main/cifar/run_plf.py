@@ -1,21 +1,22 @@
 import logging
 import os
-import shutil
+import sys
+from types import SimpleNamespace
 
 import torch
 import torch.optim as optim
 from torchvision import models
 
-from robustbench.data import load_cifar10c
-from robustbench.model_zoo.enums import ThreatModel
-from robustbench.utils import load_model
-from robustbench.utils import clean_accuracy as accuracy
+REPO_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+)
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 import tent
 import norm
 import plf
 
-from conf import cfg, load_cfg_fom_args
 from core_model.dataset import get_dataset_loader
 from args_paser import parse_args
 from configs import settings
@@ -23,16 +24,67 @@ from core_model.custom_model import load_custom_model, ClassifierWrapper
 
 
 logger = logging.getLogger(__name__)
+cfg = SimpleNamespace(
+    MODEL=SimpleNamespace(ADAPTATION="PLF", EPISODIC=False),
+    OPTIM=SimpleNamespace(
+        STEPS=1,
+        LR=1e-3,
+        METHOD="Adam",
+        BETA=0.9,
+        MOMENTUM=0.9,
+        DAMPENING=0.0,
+        WD=0.0,
+        NESTEROV=True,
+        MT=0.999,
+        RST=0.01,
+        AP=0.92,
+    ),
+)
+
+
+def resolve_stage0_checkpoint(dataset, case, model_name, uni_name):
+    """Find a compatible stage-0 checkpoint for a TTA baseline."""
+    candidates = [
+        settings.get_ckpt_path(
+            dataset, case, model_name, "worker_restore", step=0, unique_name=uni_name
+        ),
+        settings.get_ckpt_path(
+            dataset, case, model_name, "worker_restore", step=0, unique_name="contra"
+        ),
+        settings.get_ckpt_path(
+            dataset, case, model_name, "worker_restore", step=0, unique_name=None
+        ),
+    ]
+    for path in candidates:
+        if path and os.path.exists(path):
+            return path
+    raise FileNotFoundError(
+        "No compatible stage-0 checkpoint found. Checked: "
+        + "; ".join(path for path in candidates if path)
+    )
+
+
+def clean_accuracy(model, x, y, batch_size, save_path=None):
+    """Evaluate accuracy while allowing test-time adaptation inside forward."""
+    model.train()
+    correct = 0
+    total = 0
+    for start in range(0, x.size(0), batch_size):
+        end = start + batch_size
+        logits = model(x[start:end])
+        pred = logits.argmax(dim=1)
+        correct += pred.eq(y[start:end]).sum().item()
+        total += y[start:end].numel()
+
+    if save_path is not None:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        state_source = getattr(model, "model", model)
+        torch.save(state_source.state_dict(), save_path)
+
+    return correct / max(total, 1)
 
 
 def evaluate(description):
-    # load_cfg_fom_args(description)
-
-    # dora modify model resnet18
-    # configure model
-    # base_model = load_model(cfg.MODEL.ARCH, cfg.CKPT_DIR,
-    #                    cfg.CORRUPTION.DATASET, ThreatModel.corruptions).cuda()
-
     custom_args = parse_args()
     case = settings.get_case(custom_args.noise_ratio, custom_args.noise_type, custom_args.balanced)
     step = getattr(custom_args, "step", 1)
@@ -45,17 +97,9 @@ def evaluate(description):
         custom_args.dataset, "test", case, None, None, None, custom_args.batch_size, shuffle=False
     )
 
-    load_model_path = settings.get_ckpt_path(custom_args.dataset, case, custom_args.model,
-                                             model_suffix="worker_restore",
-                                             step=0, unique_name=uni_name)
-
-    if not os.path.exists(load_model_path):
-        contra_model_path = settings.get_ckpt_path(custom_args.dataset, case, custom_args.model,
-                                                   model_suffix="worker_restore",
-                                                   step=0, unique_name="contra")
-        os.makedirs(os.path.dirname(load_model_path), exist_ok=True)
-        shutil.copy(contra_model_path, load_model_path)
-        print('copy contra model: %s to : %s' % (contra_model_path, load_model_path))
+    load_model_path = resolve_stage0_checkpoint(
+        custom_args.dataset, case, custom_args.model, uni_name
+    )
 
     save_model_path = settings.get_ckpt_path(custom_args.dataset, case, custom_args.model,
                                              model_suffix="worker_tta",
@@ -79,34 +123,23 @@ def evaluate(description):
     if cfg.MODEL.ADAPTATION == "PLF":
         logger.info("test-time adaptation: PLF")
         model = setup_plf(base_model, custom_args, num_classes)
-    # evaluate on each severity and type of corruption in turn
-    prev_ct = "x0"
-    # for severity in cfg.CORRUPTION.SEVERITY:
-    #     for i_c, corruption_type in enumerate(cfg.CORRUPTION.TYPE):
-    # continual adaptation for all corruption
-    # if i_c == 0:
+
     try:
         model.reset()
         logger.info("resetting model")
     except:
         logger.warning("not resetting model")
-        # else:
-        #     logger.warning("not resetting model")
-        # x_test, y_test = load_cifar10c(cfg.CORRUPTION.NUM_EX,
-        #                                severity, cfg.DATA_DIR, False,
-        #                                [corruption_type])
 
-    # dora modify load Dts
-    # test_data, test_labels, test_dataloader = get_dataset_loader(
-    #     dataset, "test", data_dir, mean, std, cfg.TEST.BATCH_SIZE, shuffle=False
-    # )
     x_test = torch.from_numpy(test_data)
     y_test = torch.from_numpy(test_labels)
 
     x_test, y_test = x_test.to(device), y_test.to(device)
-    acc = accuracy(model, x_test, y_test, custom_args.batch_size, save_path=save_model_path)
+    acc = clean_accuracy(
+        model, x_test, y_test, custom_args.batch_size, save_path=save_model_path
+    )
     err = 1.0 - acc
-    logger.info(f"error % ]: {err:.2%}")
+    logger.info("PLF accuracy: %.4f, error: %.2f%%", acc, err * 100)
+    print("PLF accuracy: %.4f, error: %.2f%%" % (acc, err * 100))
 
 
 def setup_source(model):
@@ -150,11 +183,10 @@ def setup_tent(model):
 
 
 def setup_plf(model, custom_args, num_classes):
-    """Set up tent adaptation.
+    """Set up PLF adaptation.
 
     Configure the model for training + feature modulation by batch statistics,
-    collect the parameters for feature modulation by gradient optimization,
-    set up the optimizer, and then tent the model.
+    collect the adaptation parameters, set up the optimizer, and wrap the model.
     """
     model = plf.configure_model(model)
     params, param_names = plf.collect_params(model)
@@ -208,4 +240,4 @@ def setup_optimizer(params):
 
 
 if __name__ == "__main__":
-    evaluate('"CIFAR-10-C evaluation.')
+    evaluate("PLF adaptation evaluation.")

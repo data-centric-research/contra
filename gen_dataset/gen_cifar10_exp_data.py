@@ -2,10 +2,16 @@ import json
 import torch
 import numpy as np
 import os
+import sys
 import argparse
 from torchvision import datasets, transforms
+
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
 from configs import settings
-from split_dataset import split
+from gen_dataset.split_dataset import split
 
 
 def create_cifar10_npy_files(
@@ -15,10 +21,16 @@ def create_cifar10_npy_files(
     noise_ratio=0.2,
     num_versions=4,
     retention_ratios=[0.5, 0.3, 0.1, 0.05],
-    balanced=False,  # choose if class balance
+    balanced=False,
 ):
 
     rng = np.random.default_rng(42)
+    dataset_name = "cifar-10"
+    num_classes = 10
+    if gen_dir:
+        settings.dataset_paths[dataset_name] = os.path.abspath(
+            os.path.join(gen_dir, os.pardir)
+        )
 
     transform = transforms.Compose(
         [
@@ -34,9 +46,7 @@ def create_cifar10_npy_files(
     )
 
     case = settings.get_case(noise_ratio, noise_type, balanced)
-    print("split dataset in balanced class...")
-    dataset_name = "cifar-10"
-    num_classes = 10
+    print("Splitting the dataset into initial and incremental pools...")
     D_inc_data, D_inc_labels = split(
         dataset_name, case, train_dataset, test_dataset, num_classes
     )
@@ -201,14 +211,14 @@ def main():
         "--gen_dir",
         type=str,
         default="./data/cifar-10/gen/",
-        help="# Directory to save the generated dataset",
+        help="Directory to save the generated dataset",
     )
     parser.add_argument(
         "--noise_type",
         type=str,
         choices=["symmetric", "asymmetric"],
         default="symmetric",
-        help="Noise Type: 'symmetric' 或 'asymmetric'",
+        help="Noise type: 'symmetric' or 'asymmetric'",
     )
     parser.add_argument(
         "--noise_ratio", type=float, default=0.2, help="Noise ratio(default 0.2)"
@@ -229,7 +239,7 @@ def main():
     parser.add_argument(
         "--balanced",
         action="store_true",
-        help="Whether to use class-balanced data splitting. If not specified, random splitting is used.",
+        help="Use the paper-aligned balanced case name for generated data.",
     )
 
     args = parser.parse_args()

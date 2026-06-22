@@ -1,74 +1,63 @@
 # CONTRA: A Continual Train, Refinement and Adaptation Framework for Building Robust Web Image Recognition Systems
 
-<div align="center">
+This repository contains the public code for the ICANN 2026 paper:
+**CONTRA: A Continual Train, Refinement and Adaptation Framework for Building Robust Web Image Recognition Systems**.
 
- [:sparkles: Overview](#sparkles-overview) | [:computer: Usage](#computer-usage) | [:link: License](#scroll-license)
+CONTRA combines a fixed rehearsal buffer, teacher-student noisy-label refinement with spectral normalization on the teacher, and request-time adaptation. The released scripts directly cover the CIFAR-10, CIFAR-100, and Oxford-IIIT Pet experiments. The compact Food-101 and WebVision checks reported in the paper use the same tensor-file interface after local preprocessing.
 
-<div align="left">
+## Repository Layout
 
-## :sparkles: Overview
+```text
+args_paser.py                 Shared command-line parser
+run_experiment.py             Raw and incremental training entry point
+core_model/                   CONTRA training, refinement, and adaptation code
+gen_dataset/                  Dataset split and noisy incremental data generation
+configs/                      Dataset paths, class names, and class mappings
+baseline_code/colearn/        LNL baselines: Co-teaching, Co-teaching+, JoCoR, DivideMix
+baseline_code/cotta-main/     CoTTA baseline adapter
+baseline_code/PLF-main/       PLF baseline adapter
+baseline_code/sotta/          SoTTA baseline adapter
+```
 
-<img src="assets/framework_01.png" width="100%" style="border: none;" alt="CONTRA framework overview" />
+## Environment
 
-This repository provides training code for noise-robust **incremental** learning and adaptation on CIFAR-10, CIFAR-100, Oxford-IIIT Pet (Pet-37), and optional Food-101-style setups (`run_experiment.py`). It matches the **CONTRA** method in the manuscript: rehearsal buffer, teacher–student refinement with spectral normalization on the teacher, and request-time adaptation (see paper for the full protocol and G1/G2 baseline grouping).
-
-The released scripts directly cover the CIFAR and Pet experiments. The compact Food-101/WebVision checks reported in the paper use the same tensor-based data interface after local dataset preprocessing.
-
-## :computer: Usage
-
-### :rainbow: Create Environment
-
-Install dependencies (Python 3.10 recommended):
+Python 3.10 is recommended. A local virtual environment or Conda environment is sufficient; this repository does not require a Dockerfile.
 
 ```bash
 python -m venv .venv
-# Windows: .venv\Scripts\activate
-# Unix:    source .venv/bin/activate
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Alternatively, create a Conda env and then install from `requirements.txt`:
+On Windows PowerShell:
 
-```bash
-conda create -n contra python=3.10 -y
-conda activate contra
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### :rocket: Prepare Dataset
+## Dataset Generation
 
-#### :zap: Supported Datasets
+Generate the staged tensor files before training. The scripts write to:
 
-This project supports the following datasets:
+```text
+data/<dataset>/gen/<case>/
+```
 
-1. **CIFAR-10**:
-   - A dataset containing 60,000 32x32 color images in 10 classes, with 6,000 images per class.
-   - Directory structure:
-     - `data/cifar-10/normal/`: Contains the original dataset.
-     - `data/cifar-10/gen/`: Stores generated datasets with noise.
+where `<case>` has the form:
 
-2. **CIFAR-100**:
-   - A dataset containing 60,000 32x32 color images in 100 classes, grouped into 20 superclasses.
-   - Directory structure:
-     - `data/cifar-100/normal/`: Contains the original dataset.
-     - `data/cifar-100/gen/`: Stores generated datasets with noise.
+```text
+nr_<noise_ratio>_nt_<noise_type>_balanced
+```
 
-3. **Oxford-IIIT Pet (PET-37)**:
-   - A dataset containing 37 categories of pet images with approximately 200 images per category.
-   - Directory structure:
-     - `data/pet-37/normal/oxford-pets/`: Contains the original dataset.
-     - `data/pet-37/gen/`: Stores generated datasets with noise.
+when `--balanced` is used. The paper uses a 50% clean initial split, a fixed 10% rehearsal buffer sampled from that initial split, four incremental stages, and 20% label noise unless otherwise stated.
 
-#### :zap: Generate Noisy Dataset
-
-You can generate datasets with symmetric or asymmetric label noise for any supported dataset by running the provided scripts.
-
-**Example: CIFAR-100 with symmetric noise** (usable for some experiments):
+### CIFAR-10, Symmetric Noise
 
 ```bash
-PYTHONPATH=. python gen_dataset/gen_cifar100_exp_data.py \
-  --data_dir ./data/cifar-100/normal \
-  --gen_dir ./data/cifar-100/gen/ \
+PYTHONPATH=. python gen_dataset/gen_cifar10_exp_data.py \
+  --data_dir ./data/cifar-10/normal \
   --noise_type symmetric \
   --noise_ratio 0.2 \
   --num_versions 4 \
@@ -76,12 +65,11 @@ PYTHONPATH=. python gen_dataset/gen_cifar100_exp_data.py \
   --balanced
 ```
 
-**Example: CIFAR-100 with asymmetric noise** (retrieval experiments in the main paper use **asymmetric** 20% noise):
+### CIFAR-100, Asymmetric Noise
 
 ```bash
 PYTHONPATH=. python gen_dataset/gen_cifar100_exp_data.py \
   --data_dir ./data/cifar-100/normal \
-  --gen_dir ./data/cifar-100/gen/ \
   --noise_type asymmetric \
   --noise_ratio 0.2 \
   --num_versions 4 \
@@ -89,46 +77,53 @@ PYTHONPATH=. python gen_dataset/gen_cifar100_exp_data.py \
   --balanced
 ```
 
-**Replace `--data_dir` and `--gen_dir` with paths for CIFAR-10 or PET-37 as needed.** Main paper: **symmetric** noise for CIFAR-10 / Pet classification tables; **asymmetric** for CIFAR-100 / Pet retrieval tables.
-
-### :fire: Training Models
-
-#### Paper-aligned backbones (`--model`)
-
-| Dataset (main paper) | Backbone reported in paper | Typical `--model` in this repo |
-|----------------------|-----------------------------|--------------------------------|
-| CIFAR-10 (classification) | ResNet-18 | `cifar-resnet18` |
-| CIFAR-100 (retrieval) | WideResNet-40-2 | `cifar-wideresnet40` |
-| Oxford-IIIT Pet | WideResNet-50-2 | `wideresnet50` |
-
-Incremental stages load the previous checkpoint from `ckpt/` automatically (via `configs/settings`); there is **no** `--load_model_path` in `run_experiment.py`—run **step 0 before step 1**, etc.
-
-#### :zap: Training Modes
-
-1. **Raw Training** (`step -1`): train on the non-incremental split (optional baseline).
-
-**CIFAR-100 example** (adjust `--noise_type` to `asymmetric` for retrieval-style data):
+### Oxford-IIIT Pet, Symmetric Noise
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
-  --step -1 \
-  --model cifar-wideresnet40 \
-  --dataset cifar-100 \
+PYTHONPATH=. python gen_dataset/gen_pet37_exp_data.py \
+  --data_dir ./data/pet-37/normal \
+  --noise_type symmetric \
   --noise_ratio 0.2 \
-  --noise_type asymmetric \
-  --balanced \
-  --num_epochs 200 \
-  --learning_rate 0.05 \
-  --optimizer adam \
-  --batch_size 128
+  --num_versions 4 \
+  --retention_ratios 0.5 0.3 0.1 0.05 \
+  --balanced
 ```
 
-2. **Incremental Training**: `step 0` … `step 4` on generated `D_inc` / rehearsal splits.
+After generation, a case directory contains files such as:
 
-**CIFAR-10 (symmetric noise), paper-style backbone:**
+```text
+data/cifar-10/gen/nr_0.2_nt_symmetric_balanced/
+  aux_data.npy
+  aux_label.npy
+  test_data.npy
+  test_label.npy
+  step_0/train_data.npy
+  step_0/train_label.npy
+  step_1/train_data.npy
+  step_1/train_label.npy
+  step_2/train_data.npy
+  step_2/train_label.npy
+  step_3/train_data.npy
+  step_3/train_label.npy
+  step_4/train_data.npy
+  step_4/train_label.npy
+```
+
+## Paper-Aligned Backbones
+
+| Dataset | Backbone in the paper | `--model` value |
+| --- | --- | --- |
+| CIFAR-10 | ResNet-18 | `cifar-resnet18` |
+| CIFAR-100 | WideResNet-40-2 | `cifar-wideresnet40` |
+| Oxford-IIIT Pet | WideResNet-50-2 | `wideresnet50` |
+
+## Training
+
+Run step 0 before later incremental stages because each stage loads the previous checkpoint from `ckpt/`.
+
+### CIFAR-10 Step 0
 
 ```bash
-# Step 0 — train M at stage 0
 CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
   --step 0 \
   --model cifar-resnet18 \
@@ -140,8 +135,11 @@ CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
   --learning_rate 0.05 \
   --optimizer adam \
   --batch_size 128
+```
 
-# Step 1 — requires ckpt from step 0 under ckpt/cifar-10/.../cifar-resnet18/...
+### CIFAR-10 Step 1
+
+```bash
 CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
   --step 1 \
   --model cifar-resnet18 \
@@ -155,24 +153,18 @@ CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
   --batch_size 128
 ```
 
-Repeat for steps 2–4. For **Pet-37**, use `--dataset pet-37` and `--model wideresnet50` (and matching generated data). For **CIFAR-100** retrieval experiments, use `--noise_type asymmetric` and `--model cifar-wideresnet40`.
+Repeat with `--step 2`, `--step 3`, and `--step 4`. Use `--dataset pet-37 --model wideresnet50` for Oxford-IIIT Pet and `--dataset cifar-100 --model cifar-wideresnet40 --noise_type asymmetric` for the CIFAR-100 retrieval-style setting.
 
-### :zap: Executing Baselines
+## Baselines
 
-1. Coteaching: <https://github.com/bhanML/Co-teaching>
-2. Coteachingplus: <https://github.com/xingruiyu/coteaching_plus>
-3. JoCoR: <https://github.com/hongxin001/JoCoR>
-4. DivideMix: <https://github.com/LiJunnan1992/DivideMix>
-5. Cotta: <https://github.com/qinenergy/cotta>
-6. PLF: <https://github.com/tjy1423317192/PLF>
-7. SoTTA: <https://github.com/taeckyung/SoTTA>
+The paper separates source-free continual TTA baselines from source-available adaptation methods. The following local adapters are included for reproducibility checks.
 
-**LNL baselines** (Co-teaching, Co-teaching+, JoCoR, DivideMix) share the same entry point under `baseline_code/colearn/`:
+### LNL Baselines
+
+Co-teaching, Co-teaching+, JoCoR, and DivideMix share the entry point under `baseline_code/colearn/`.
 
 ```bash
-# DivideMix (LNL baseline, GMM + MixMatch) — use same --model as CONTRA for fair comparison
-CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. \
-  python baseline_code/colearn/main.py \
+CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python baseline_code/colearn/main.py \
   --step 1 \
   --model cifar-resnet18 \
   --dataset cifar-10 \
@@ -184,12 +176,12 @@ CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. \
   --uni_name DivideMix
 ```
 
-**TTA baselines** (CoTTA, PLF, SoTTA) each have an independent entry script:
+### TTA Baselines
+
+CoTTA, PLF, and SoTTA are provided as local adapters under `baseline_code/cotta-main/`, `baseline_code/PLF-main/`, and `baseline_code/sotta/`. They expect the same generated tensor files and a compatible stage-0 checkpoint.
 
 ```bash
-# SoTTA (TTA baseline, HUS + ESM)
-CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. \
-  python baseline_code/sotta/run_sotta.py \
+CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python baseline_code/sotta/run_sotta.py \
   --step 1 \
   --model cifar-resnet18 \
   --dataset cifar-10 \
@@ -199,241 +191,11 @@ CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. \
   --batch_size 128 \
   --uni_name SoTTA
 ```
-<!-- 
-```bib
-@inproceedings{han2018coteaching,
-  title = {Co-teaching: Robust training of deep neural networks with extremely noisy labels},
-  author = {Bo Han and Quanming Yao and Xingrui Yu and Gang Niu and Miao Xu and Weihua Hu and Ivor W. Tsang and Masashi Sugiyama},
-  booktitle = {NeurIPS},
-  year = {2018}
-}
 
-@inproceedings{co-teaching+,
-  title={How does disagreement help generalization against label corruption?},
-  author={Yu, Xingrui and Han, Bo and Yao, Jiangchao and Niu, Gang and Tsang, Ivor and Sugiyama, Masashi},
-  booktitle={International conference on machine learning},
-  pages={7164--7173},
-  year={2019},
-  organization={PMLR}
-}
+## Notes on Food-101 and WebVision
 
-@inproceedings{JoCoR,
-  title={Combating noisy labels by agreement: A joint training method with co-regularization},
-  author={Wei, Hongxin and Feng, Lei and Chen, Xiangyu and An, Bo},
-  booktitle={Proceedings of the IEEE/CVF conference on computer vision and pattern recognition},
-  pages={13726--13735},
-  year={2020}
-}
+The paper reports compact Food-101 and WebVision checks under the same staged tensor protocol. Public scripts include `food-101` in the shared data interface, but the raw Food-101/WebVision preprocessing used for the compact checks is not included here. To reproduce those checks, preprocess the datasets into the same `train_data.npy`, `train_label.npy`, `test_data.npy`, `test_label.npy`, and staged `step_<k>/train_*.npy` layout.
 
-@inproceedings{dividemix,
-  title={DivideMix: Learning with Noisy Labels as Semi-Supervised Learning},
-  author={Li, Junnan and Socher, Richard and Hoi, Steven C.H.},
-  booktitle={International Conference on Learning Representations},
-  year={2020}
-}
-
-@inproceedings{cotta,
-  title={Continual test-time domain adaptation},
-  author={Wang, Qin and Fink, Olga and Van Gool, Luc and Dai, Dengxin},
-  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
-  pages={7201--7211},
-  year={2022}
-}
-
-@misc{plf,
-      title={Less is More: Pseudo-Label Filtering for Continual Test-Time Adaptation}, 
-      author={Jiayao Tan and Fan Lyu and Chenggong Ni and Tingliang Feng and Fuyuan Hu and Zhang Zhang and Shaochuang Zhao and Liang Wang},
-      year={2024},
-      eprint={2406.02609},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2406.02609}, 
-}
-
-@inproceedings{gong2023sotta,
-  title={SoTTA: Robust Test-Time Adaptation on Noisy Data Streams},
-  author={Gong, Taesik and Jeong, Jongheon and Kim, Taewon and Kim, Yewon and Shin, Jinwoo and Lee, Sung-Ju},
-  booktitle={Advances in Neural Information Processing Systems},
-  year={2023}
-}
-
-``` -->
-
-### :bar_chart: Evaluation
-
-After training, you can evaluate results by checking the generated data and trained models.
-
-```bash
-# Check generated datasets
-tree data/cifar-10/gen/
-tree data/cifar-100/gen/
-tree data/pet-37/gen/
-```
-
-For example, when generating experimental datasets based on the CIFAR-100 dataset, the resulting datasets are as follows:
-
-```bash
-$ ll data/cifar-100/gen/nr_0.2_nt_symmetric_balanced/
-D_0_labels.npy
-D_0.npy
-D_a_labels.npy
-D_a.npy
-D_inc_0_data.npy
-D_inc_0_labels.npy
-D_tr_data_version_1.npy
-D_tr_data_version_2.npy
-D_tr_data_version_3.npy
-D_tr_data_version_4.npy
-D_tr_labels_version_1.npy
-D_tr_labels_version_2.npy
-D_tr_labels_version_3.npy
-D_tr_labels_version_4.npy
-test_data.npy
-test_labels.npy
-train_data.npy
-train_labels.npy
-```
-
-In the directory name `nr_0.2_nt_symmetric_balanced`, `nr` stands for noise ratio, `nt` stands for noise type (which is symmetric in this case), and `balanced` indicates that the classes chosen for noise injection are balanced.
-
-We provide the following figures to show verify the correctness of dataset generation logics.
-
-<img src="assets/1_label_dist.png" width="100%" style="border: none;"></img>
-<img src="assets/2_label_dist_with_asy_noise.png" width="100%" style="border: none;"></img>
-<img src="assets/3_label_dist_with_sy_noise.png" width="100%" style="border: none;"></img>
-
-
-```bash
-# Check trained model checkpoints
-tree ckpt/cifar-100/nr_0.2_nt_symmetric/
-# or 
-tree ckpt/cifar-10/nr_0.2_nt_symmetric/
-# or
-tree ckpt/pet-37/nr_0.2_nt_symmetric/
-```
-
-For example, when training models on the CIFAR-100 dataset, the resulting models are as follows (directory names include your `--model` choice, e.g. `cifar-wideresnet40` or `cifar-resnet18`):
-
-```bash
-...[..nr_0.2_nt_symmetric_balanced]$ tree
-.
-├── step_0
-│    ├── contra
-│    │    ├── cifar-wideresnet40_teacher_restore.pth
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── coteaching
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── coteaching_plus
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── dividemix
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── cotta
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── jocor
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── plf
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── sotta
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    └── replay
-│        └── cifar-wideresnet40_worker_restore.pth
-├── step_1
-│    ├── contra
-│    │    ├── cifar-wideresnet40_teacher_restore.pth
-│    │    ├── cifar-wideresnet40_teacher_tta.pth
-│    │    ├── cifar-wideresnet40_worker_raw.pth
-│    │    ├── cifar-wideresnet40_worker_restore.pth
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    ├── coteaching
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── coteaching_plus
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── dividemix
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── cotta
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    ├── jocor
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── plf
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    ├── sotta
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    └── replay
-│        ├── cifar-wideresnet40_worker_raw.pth
-│        └── cifar-wideresnet40_worker_restore.pth
-├── step_2
-│    ├── contra
-│    │    ├── cifar-wideresnet40_teacher_restore.pth
-│    │    ├── cifar-wideresnet40_teacher_tta.pth
-│    │    ├── cifar-wideresnet40_worker_raw.pth
-│    │    ├── cifar-wideresnet40_worker_restore.pth
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    ├── coteaching
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── coteaching_plus
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── dividemix
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── cotta
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    ├── jocor
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── plf
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    ├── sotta
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    └── replay
-│        └── cifar-wideresnet40_worker_restore.pth
-├── step_3
-│    ├── contra
-│    │    ├── cifar-wideresnet40_teacher_restore.pth
-│    │    ├── cifar-wideresnet40_teacher_tta.pth
-│    │    ├── cifar-wideresnet40_worker_raw.pth
-│    │    ├── cifar-wideresnet40_worker_restore.pth
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    ├── coteaching
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── coteaching_plus
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── dividemix
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── cotta
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    ├── jocor
-│    │    └── cifar-wideresnet40_worker_restore.pth
-│    ├── plf
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    ├── sotta
-│    │    └── cifar-wideresnet40_worker_tta.pth
-│    └── replay
-│        └── cifar-wideresnet40_worker_restore.pth
-└── step_4
-    ├── contra
-    │    ├── cifar-wideresnet40_teacher_restore.pth
-    │    ├── cifar-wideresnet40_teacher_tta.pth
-    │    ├── cifar-wideresnet40_worker_raw.pth
-    │    ├── cifar-wideresnet40_worker_restore.pth
-    │    └── cifar-wideresnet40_worker_tta.pth
-    ├── coteaching
-    │    └── cifar-wideresnet40_worker_restore.pth
-    ├── coteaching_plus
-    │    └── cifar-wideresnet40_worker_restore.pth
-    ├── dividemix
-    │    └── cifar-wideresnet40_worker_restore.pth
-    ├── cotta
-    │    └── cifar-wideresnet40_worker_tta.pth
-    ├── jocor
-    │    └── cifar-wideresnet40_worker_restore.pth
-    ├── plf
-    │    └── cifar-wideresnet40_worker_tta.pth
-    ├── sotta
-    │    └── cifar-wideresnet40_worker_tta.pth
-    └── replay
-        └── cifar-wideresnet40_worker_restore.pth
-
-
-```
-
-## :scroll: License
+## License
 
 This repository is released under the MIT license.

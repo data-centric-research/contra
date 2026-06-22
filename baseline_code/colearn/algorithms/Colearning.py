@@ -57,7 +57,7 @@ class Colearning:
 
     def mixup_data(self, x, y, alpha=5.0):
         lam = Beta(torch.tensor(alpha), torch.tensor(alpha)).sample() if alpha > 0 else 1
-        index = torch.randperm(x.size()[0]).cuda() 
+        index = torch.randperm(x.size()[0], device=x.device)
         mixed_x = lam * x + (1 - lam) * x[index, :]
         y_a, y_b = y, y[index]
         return mixed_x, y_a, y_b, lam

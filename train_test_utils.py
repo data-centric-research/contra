@@ -57,7 +57,9 @@ class TrainTestUtils:
         alpha = kwargs.get("alpha", 1.0)
         beta = kwargs.get("beta", 0.5)
 
-        with tqdm(total=len(train_loader), desc=f"Epoch {epoch + 1} Training") as pbar:
+        with tqdm(
+            total=len(train_loader), desc=f"Epoch {epoch + 1} Training", ascii=True
+        ) as pbar:
             for i, (inputs, labels) in enumerate(train_loader):
                 inputs, labels = inputs.to(device), labels.to(device)
                 optimizer.zero_grad()
@@ -141,7 +143,9 @@ def test_model(model, test_loader, criterion, device, epoch):
     correct_test = 0
     total_test = 0
     with torch.no_grad():
-        with tqdm(total=len(test_loader), desc=f"Epoch {epoch + 1} Testing") as pbar:
+        with tqdm(
+            total=len(test_loader), desc=f"Epoch {epoch + 1} Testing", ascii=True
+        ) as pbar:
             for test_inputs, test_targets in test_loader:
                 test_inputs, test_targets = test_inputs.to(device), test_targets.to(
                     device
@@ -234,7 +238,7 @@ def train_model(
         cutmix_transform = v2.CutMix(alpha=alpha, num_classes=num_classes)
         mixup_transform = v2.MixUp(alpha=alpha, num_classes=num_classes)
 
-    for epoch in tqdm(range(epochs), desc="Training Progress"):
+    for epoch in tqdm(range(epochs), desc="Training Progress", ascii=True):
         running_loss = 0.0
         correct = 0
         total = 0
@@ -243,7 +247,9 @@ def train_model(
         lr = optimizer.state_dict()["param_groups"][0]["lr"]
         print("Current LR:", lr)
 
-        with tqdm(total=len(dataloader), desc=f"Epoch {epoch + 1} Training") as pbar:
+        with tqdm(
+            total=len(dataloader), desc=f"Epoch {epoch + 1} Training", ascii=True
+        ) as pbar:
             for inputs, targets in dataloader:
 
                 last_input, last_labels = inputs, targets

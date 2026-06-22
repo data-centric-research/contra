@@ -13,7 +13,6 @@ from core_model.custom_model import ClassifierWrapper, load_custom_model
 from configs import settings
 
 from torch.utils.data import DataLoader, Dataset
-from torch.utils.tensorboard import SummaryWriter
 
 from torchvision.transforms import v2
 from train_test_utils import train_model
@@ -28,8 +27,6 @@ def get_num_of_classes(dataset_name):
         num_classes = 100
     elif dataset_name == "food-101":
         num_classes = 101
-    elif dataset_name == "flower-102":
-        num_classes = 102
     else:
         raise ValueError(f"Unsupported dataset type: {dataset_name}")
 
@@ -88,7 +85,7 @@ def train_step(
     step = args.step
     case = settings.get_case(args.noise_ratio, args.noise_type, args.balanced)
     uni_name = args.uni_name
-    model_suffix = "worker_raw" if args.model_suffix is None else args.model_suffix
+    model_suffix = "worker_restore" if args.model_suffix is None else args.model_suffix
     if step < 0:
 
         D_train_data = load_dataset(
@@ -105,7 +102,7 @@ def train_step(
         )
 
         # Print the model and data used for training
-        print("Data used for training: train_data.npy and train_labels.npy")
+        print("Data used for training: train_data.npy and train_label.npy")
         print("Model used for training: ResNet18 initialized")
 
         model_raw = load_custom_model(model_name, num_classes)
@@ -158,7 +155,7 @@ def train_step(
                 settings.get_dataset_path(dataset_name, case, "test_label")
             )
 
-            print("Data used for training: D_0.npy 和 D_0_labels.npy")
+            print("Data used for training: step_0/train_data.npy and step_0/train_label.npy")
             print("Model used for training: ResNet18")
 
             model_p0 = load_custom_model(model_name, num_classes)
@@ -184,6 +181,18 @@ def train_step(
             os.makedirs(subdir, exist_ok=True)
             torch.save(model_p0.state_dict(), model_p0_path)
             print(f"M_p0 has been trained and save to {model_p0_path}")
+
+            case_model_p0_path = settings.get_ckpt_path(
+                dataset_name,
+                case,
+                model_name,
+                "worker_restore",
+                step=step,
+                unique_name=uni_name,
+            )
+            os.makedirs(os.path.dirname(case_model_p0_path), exist_ok=True)
+            shutil.copy(model_p0_path, case_model_p0_path)
+            print(f"Copy {model_p0_path} to {case_model_p0_path}")
         else:
             copy_model_p0_path = settings.get_ckpt_path(
                 dataset_name,
@@ -288,7 +297,15 @@ def train_step(
 def main():
     args = parse_args()
 
-    writer = SummaryWriter(log_dir="runs/experiment") if args.use_tensorboard else None
+    writer = None
+    if args.use_tensorboard:
+        try:
+            from torch.utils.tensorboard import SummaryWriter
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError(
+                "TensorBoard logging requires the optional 'tensorboard' package."
+            ) from exc
+        writer = SummaryWriter(log_dir="runs/experiment")
 
     train_step(
         args,

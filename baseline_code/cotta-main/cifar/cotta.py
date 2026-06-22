@@ -1,4 +1,5 @@
 from copy import deepcopy
+import os
 from torchvision import models
 
 import torch
@@ -17,7 +18,7 @@ from configs import settings
 
 
 def get_tta_transforms(gaussian_std: float = 0.005, soft=False, clip_inputs=False, dataset=''):
-    # modify shape cifar10 cifar100 为 (32, 32,3) 新数据集待修改
+    # Convert CIFAR-10/CIFAR-100 arrays to shape (32, 32, 3); adapt this for new datasets.
     img_shape = (32, 32, 3)
     if dataset == 'pet-37':
         img_shape = (224, 224, 3)
@@ -151,7 +152,7 @@ class CoTTA(nn.Module):
             for nm, m in self.model.named_modules():
                 for npp, p in m.named_parameters():
                     if npp in ["weight", "bias"] and p.requires_grad:
-                        mask = (torch.rand(p.shape) < self.rst).float().cuda()
+                        mask = (torch.rand(p.shape, device=p.device) < self.rst).float()
                         with torch.no_grad():
                             p.data = self.model_state[f"{nm}.{npp}"] * mask + p * (
                                 1.0 - mask
@@ -195,8 +196,40 @@ def copy_model_and_optimizer(model, optimizer, args):
     num_classes = settings.num_classes_dict[args.dataset]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    load_model_path = settings.get_ckpt_path(args.dataset, case, args.model, model_suffix="worker_restore",
-                                             step=0, unique_name=uni_name)
+    checkpoint_candidates = [
+        settings.get_ckpt_path(
+            args.dataset,
+            case,
+            args.model,
+            model_suffix="worker_restore",
+            step=0,
+            unique_name=uni_name,
+        ),
+        settings.get_ckpt_path(
+            args.dataset,
+            case,
+            args.model,
+            model_suffix="worker_restore",
+            step=0,
+            unique_name="contra",
+        ),
+        settings.get_ckpt_path(
+            args.dataset,
+            case,
+            args.model,
+            model_suffix="worker_restore",
+            step=0,
+            unique_name=None,
+        ),
+    ]
+    load_model_path = next(
+        (path for path in checkpoint_candidates if path and os.path.exists(path)), None
+    )
+    if load_model_path is None:
+        raise FileNotFoundError(
+            "No compatible stage-0 checkpoint found. Checked: "
+            + "; ".join(path for path in checkpoint_candidates if path)
+        )
     loaded_model = load_custom_model(args.model, num_classes, load_pretrained=False)
     model_p0 = ClassifierWrapper(loaded_model, num_classes)
 

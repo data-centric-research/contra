@@ -1,13 +1,19 @@
 import torch
 import numpy as np
 import os
+import sys
 import argparse
 from torchvision import datasets, transforms
 import json
 
 import collections
+
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
 from configs import settings
-from split_dataset import split
+from gen_dataset.split_dataset import split
 
 
 def load_classes_from_file(file_path):
@@ -64,6 +70,12 @@ def create_cifar100_npy_files(
 ):
 
     rng = np.random.default_rng(42)
+    dataset_name = "cifar-100"
+    num_classes = 100
+    if gen_dir:
+        settings.dataset_paths[dataset_name] = os.path.abspath(
+            os.path.join(gen_dir, os.pardir)
+        )
 
     data_transform = transforms.Compose(
         [
@@ -81,9 +93,7 @@ def create_cifar100_npy_files(
 
     case = settings.get_case(noise_ratio, noise_type, balanced)
 
-    print("Using class-balanced data splitting...")
-    dataset_name = "cifar-100"
-    num_classes = 100
+    print("Splitting the dataset into initial and incremental pools...")
     D_inc_data, D_inc_labels = split(
         dataset_name, case, train_dataset, test_dataset, num_classes
     )
@@ -337,7 +347,7 @@ def main():
     parser.add_argument(
         "--balanced",
         action="store_true",
-        help="Whether to use class-balanced data splitting. If not specified, random splitting is used.",
+        help="Use the paper-aligned balanced case name for generated data.",
     )
 
     parser.add_argument(

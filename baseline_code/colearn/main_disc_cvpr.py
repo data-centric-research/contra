@@ -50,7 +50,7 @@ def main():
     num_classes = settings.num_classes_dict[custom_args.dataset]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # 根据 uni_name 动态加载对应的配置文件
+    # Dynamically load the configuration file based on uni_name.
     config_modules = {
         "DISC": "co_configs.DISC",
         "ELR": "co_configs.ELR",
@@ -60,7 +60,7 @@ def main():
     if uni_name not in config_modules:
         raise ValueError(f"Unknown uni_name: {uni_name}")
 
-    # 动态导入配置模块
+    # Dynamically import the configuration module.
     config_module = importlib.import_module(config_modules[uni_name])
     config = config_module.config
     config.update(custom_args.__dict__)
@@ -116,7 +116,7 @@ def main():
     model_scratch.load_state_dict(checkpoint, strict=False)
     model_scratch.to(device)
 
-    # 根据配置中的算法选择对应的模型
+    # Select the model according to the configured algorithm.
     model = algorithms.__dict__[config["algorithm"]](model_scratch)
     model.set_optimizer(trainloader.dataset, num_classes, config)
 
