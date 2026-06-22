@@ -162,7 +162,7 @@ class DivideMix:
         self._init_optimizers()
 
         if epoch < self.warmup_epochs:
-            pbar = tqdm(trainloader, desc=f"[DivideMix warmup {epoch+1}]")
+            pbar = tqdm(trainloader, desc=f"[DivideMix warmup {epoch+1}]", ascii=True)
             for images, labels in pbar:
                 images = images.to(device)
                 labels = labels.to(device)
@@ -202,8 +202,11 @@ class DivideMix:
         imgs_u = images[noisy_mask].to(device)
 
         if imgs_l.size(0) == 0 or imgs_u.size(0) == 0:
-            pbar = tqdm(range(0, images.size(0), 128),
-                        desc=f"[DivideMix net{net_id} fallback e{epoch+1}]")
+            pbar = tqdm(
+                range(0, images.size(0), 128),
+                desc=f"[DivideMix net{net_id} fallback e{epoch+1}]",
+                ascii=True,
+            )
             for i in pbar:
                 batch_imgs = images[i:i+128].to(device)
                 batch_lbls = labels[i:i+128].to(device)
@@ -214,8 +217,11 @@ class DivideMix:
 
         bs = 128
         n_batches = max(imgs_l.size(0), imgs_u.size(0)) // bs + 1
-        pbar = tqdm(range(n_batches),
-                    desc=f"[DivideMix net{net_id} e{epoch+1}]")
+        pbar = tqdm(
+            range(n_batches),
+            desc=f"[DivideMix net{net_id} e{epoch+1}]",
+            ascii=True,
+        )
         for b in pbar:
             idx_l = torch.randint(0, imgs_l.size(0), (bs,))
             idx_u = torch.randint(0, imgs_u.size(0), (bs,))

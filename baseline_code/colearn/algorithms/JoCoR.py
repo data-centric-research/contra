@@ -3,10 +3,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 import numpy as np
-from utils import get_model
 from tqdm import tqdm
 from losses import loss_jocor
-from torchvision import models
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -55,10 +53,6 @@ class JoCoR:
         self.co_lambda = config["co_lambda"]
         self.epochs = config["epochs"]
 
-        # model
-        # dora modify resnet
-        # self.model1 = get_model(config['model1_type'], input_channel, num_classes, device)
-        # self.model2 = get_model(config['model2_type'], input_channel, num_classes, device)
         self.optimizer = torch.optim.Adam(
             list(self.model1.parameters()) + list(self.model2.parameters()), lr=self.lr
         )
@@ -102,7 +96,7 @@ class JoCoR:
         if self.adjust_lr == 1:
             self.adjust_learning_rate(self.optimizer, epoch)
 
-        pbar = tqdm(train_loader)
+        pbar = tqdm(train_loader, ascii=True)
         for images, labels in pbar:
             images = Variable(images).to(self.device)
             labels = Variable(labels).to(self.device)

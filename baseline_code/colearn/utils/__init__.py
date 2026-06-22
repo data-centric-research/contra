@@ -1,5 +1,19 @@
-from .tools import load_config, get_log_name, set_seed, save_results, plot_results, get_test_acc, print_config
-from .get_model import get_model
+import random
 
-__all__ = ('load_config', 'get_log_name', 'set_seed', 'save_results', 'plot_results', 'get_test_acc',
-           'get_model', 'print_config')
+import numpy as np
+import torch
+import torch.backends.cudnn as cudnn
+
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    cudnn.deterministic = True
+
+
+def get_test_acc(acc):
+    return (acc[0] + acc[1]) / 2.0 if isinstance(acc, tuple) else acc
+
+
+__all__ = ("set_seed", "get_test_acc")

@@ -3,10 +3,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 import numpy as np
-from utils import get_model
 from losses import loss_coteaching
 from tqdm import tqdm
-from torchvision import models
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -54,11 +52,6 @@ class Coteaching:
             0, forget_rate ** config["exponent"], config["num_gradual"]
         )
 
-        # dora modify resnet
-        # model
-        # self.model1 = get_model(config['model1_type'], input_channel, num_classes, device)
-        # self.model2 = get_model(config['model2_type'], input_channel, num_classes, device)
-
         self.optimizer = torch.optim.Adam(
             list(self.model1.parameters()) + list(self.model2.parameters()), lr=self.lr
         )
@@ -103,7 +96,7 @@ class Coteaching:
         if self.adjust_lr == 1:
             self.adjust_learning_rate(self.optimizer, epoch)
 
-        pbar = tqdm(train_loader)
+        pbar = tqdm(train_loader, ascii=True)
         for images, labels in pbar:
 
             images = Variable(images).to(self.device)
