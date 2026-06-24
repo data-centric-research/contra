@@ -21,6 +21,7 @@ def create_cifar10_npy_files(
     noise_ratio=0.2,
     num_versions=4,
     retention_ratios=[0.5, 0.3, 0.1, 0.05],
+    rehearsal_ratio=0.1,
     balanced=False,
 ):
 
@@ -48,7 +49,12 @@ def create_cifar10_npy_files(
     case = settings.get_case(noise_ratio, noise_type, balanced)
     print("Splitting the dataset into initial and incremental pools...")
     D_inc_data, D_inc_labels = split(
-        dataset_name, case, train_dataset, test_dataset, num_classes
+        dataset_name,
+        case,
+        train_dataset,
+        test_dataset,
+        num_classes,
+        rehearsal_ratio=rehearsal_ratio,
     )
 
     # Define the forgetting class and noise class
@@ -241,6 +247,12 @@ def main():
         action="store_true",
         help="Use the paper-aligned balanced case name for generated data.",
     )
+    parser.add_argument(
+        "--rehearsal_ratio",
+        type=float,
+        default=0.1,
+        help="Rehearsal buffer ratio sampled from the clean initial split.",
+    )
 
     args = parser.parse_args()
 
@@ -255,6 +267,7 @@ def main():
         noise_ratio=args.noise_ratio,
         num_versions=args.num_versions,
         retention_ratios=args.retention_ratios,
+        rehearsal_ratio=args.rehearsal_ratio,
         balanced=args.balanced,
     )
 

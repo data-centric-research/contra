@@ -193,7 +193,7 @@ def copy_model_and_optimizer(model, optimizer, args):
     # get corrected p0_model path and dataset number_classes
     case = settings.get_case(args.noise_ratio, args.noise_type, args.balanced)
     uni_name = getattr(args, "uni_name", None)
-    num_classes = settings.num_classes_dict[args.dataset]
+    num_classes = settings.get_num_classes(args.dataset, getattr(args, "num_classes", None))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     checkpoint_candidates = [

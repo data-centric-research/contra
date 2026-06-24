@@ -8,6 +8,7 @@ dataset_paths = {
     "cifar-100": os.path.join(root_dir, "data", "cifar-100"),
     "food-101": os.path.join(root_dir, "data", "food-101"),
     "pet-37": os.path.join(root_dir, "data", "pet-37"),
+    "webvision": os.path.join(root_dir, "data", "webvision"),
 }
 
 num_classes_dict = {
@@ -15,6 +16,7 @@ num_classes_dict = {
     "cifar-100": 100,
     "food-101": 101,
     "pet-37": 37,
+    "webvision": 1000,
 }
 
 cifar10_config = {"mean": [0.4914, 0.4822, 0.4465], "std": [0.2023, 0.1994, 0.2010]}
@@ -30,6 +32,15 @@ def get_case(noise_ratio, noise_type, suffix=conf_name):
     if isinstance(suffix, bool):
         suffix = "balanced" if suffix else conf_name
     return f"nr_{noise_ratio}_nt_{noise_type}_{suffix}"
+
+
+def get_num_classes(dataset, override=None):
+    if override is not None:
+        return int(override)
+    try:
+        return num_classes_dict[dataset]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported dataset type: {dataset}") from exc
 
 
 def get_ckpt_path(dataset, case, model, model_suffix, step=None, unique_name=None):

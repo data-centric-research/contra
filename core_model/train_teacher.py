@@ -1,20 +1,26 @@
 import os
 import shutil
+import sys
 
-from core import train_teacher_model
+if __package__ is None or __package__ == "":
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core_model.core import train_teacher_model
 from torch import nn
 from configs import settings
 
 from args_paser import parse_args, parse_kwargs
-from lip_teacher import SimpleLipNet
-from optimizer import create_optimizer_scheduler
-from custom_model import load_custom_model, ClassifierWrapper
+from core_model.lip_teacher import SimpleLipNet
+from core_model.optimizer import create_optimizer_scheduler
+from core_model.custom_model import load_custom_model, ClassifierWrapper
+from core_model.reproducibility import set_global_seed
 from core_model.dataset import get_dataset_loader
 import torch
 from train_test_utils import train_model
 
 if __name__ == "__main__":
     args = parse_args()
+    set_global_seed(args.seed)
 
     learning_rate = args.learning_rate
     weight_decay = args.weight_decay
@@ -56,7 +62,7 @@ if __name__ == "__main__":
         else:
             raise FileNotFoundError(model_p0_path)
     else:
-        num_classes = settings.num_classes_dict[dataset]
+        num_classes = settings.get_num_classes(dataset, args.num_classes)
         backbone = load_custom_model(model_name, num_classes, load_pretrained=True)
         lip_teacher_model = ClassifierWrapper(
             backbone, num_classes, spectral_norm=spec_norm

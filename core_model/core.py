@@ -8,12 +8,16 @@ from torch.utils.data import DataLoader
 import numpy as np
 import sys
 
+if __package__ is None or __package__ == "":
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from args_paser import parse_args, parse_kwargs
-from lip_teacher import SimpleLipNet
-from dataset import MixupDataset, get_dataset_loader
-from optimizer import create_optimizer_scheduler
-from custom_model import load_custom_model, ClassifierWrapper
-from train_test import model_train, model_test, model_forward
+from core_model.lip_teacher import SimpleLipNet
+from core_model.dataset import MixupDataset, get_dataset_loader
+from core_model.optimizer import create_optimizer_scheduler
+from core_model.custom_model import load_custom_model, ClassifierWrapper
+from core_model.train_test import model_train, model_test, model_forward
+from core_model.reproducibility import set_global_seed
 from configs import settings
 
 
@@ -103,6 +107,8 @@ def iterate_repair_model(
     args,
 ):
     aux_labels_onehot = np.eye(num_classes)[aux_labels]
+    centroid_ratio = getattr(args, "centroid_ratio", 0.1)
+    conf_ratio = getattr(args, "conf_ratio", 0.1)
 
     # 1. Get D_mix=Da+Ds+Dc using Mt, Train Pp=Mp(Xp_mix), Loss=CrossEntropy(Pp, Yp_mix)
     # (1) Get Ds: By predicting classification labels with Yp=Mp(Xtr) and Yt=Mt(Xtr) from both models, the data where Yp=Yt=Ytr is Ds, and Ys are the labels with the same predictions
@@ -114,23 +120,12 @@ def iterate_repair_model(
     )
 
     agree_idx = working_inc_predicts == teacher_inc_predicts
-    select_idx = agree_idx & (teacher_inc_predicts == inc_labels)
+    select_idx = agree_idx
     selected_data = inc_data[select_idx]
-    selected_labels = inc_labels[select_idx]
+    selected_labels = teacher_inc_predicts[select_idx]
     selected_probs = teacher_inc_probs[select_idx]  # + working_inc_probs[select_idx])/2
-    selected_embeddings = teacher_inc_embeddings[select_idx]
 
-    # (2) Get Dc: Compute class embedding centroids (i.e., class mean) E_centroid using Mt(Xa+Xs)
-    # Obtain E_centroid by running Mt on Das (Das=Da+Ds)
-    aux_predicts, aux_probs, aux_embeddings = model_forward(
-        aux_dataloader, teacher_model, output_embedding=True
-    )
-
-    teacher_agree_embeddings = np.concatenate(
-        [aux_embeddings, selected_embeddings], axis=0
-    )
-    agree_labels = np.concatenate([aux_labels, selected_labels], axis=0)
-
+    # (2) Get Dc: compute per-class centroids on teacher-predicted disagreement embeddings.
     disagree_idx = working_inc_predicts != teacher_inc_predicts
     disagree_data = inc_data[disagree_idx]
     teacher_disagree_predicts = teacher_inc_predicts[disagree_idx]
@@ -139,21 +134,24 @@ def iterate_repair_model(
 
     centroid_data, centroid_probs = [], []
 
-    for label in list(set(aux_labels)):
-        agree_class_embedding = teacher_agree_embeddings[agree_labels == label]
-        agree_class_embedding_centroid = np.mean(agree_class_embedding, axis=0)
-
+    for label in range(num_classes):
         disagree_class_idx = teacher_disagree_predicts == label
+        if not np.any(disagree_class_idx):
+            continue
+
         disagree_class_embeddings = teacher_disagree_embeddings[disagree_class_idx]
         disagree_class_data = disagree_data[disagree_class_idx]
         disagree_class_probs = teacher_disagree_probs[disagree_class_idx]
+        disagree_class_embedding_centroid = np.mean(disagree_class_embeddings, axis=0)
 
         distances = np.linalg.norm(
-            disagree_class_embeddings - agree_class_embedding_centroid, axis=-1
+            disagree_class_embeddings - disagree_class_embedding_centroid, axis=-1
         )
-        selected_top_conf_num = len(disagree_class_probs) // 10
-        top_idx = np.argpartition(distances, selected_top_conf_num)[
-            selected_top_conf_num:
+        selected_top_conf_num = int(len(disagree_class_probs) * centroid_ratio)
+        if selected_top_conf_num <= 0:
+            continue
+        top_idx = np.argpartition(distances, selected_top_conf_num - 1)[
+            :selected_top_conf_num
         ]
 
         centroid_class_data, centroid_class_label = (
@@ -163,9 +161,15 @@ def iterate_repair_model(
         centroid_data.extend(centroid_class_data)
         centroid_probs.extend(centroid_class_label)
 
-    centroid_data = np.array(centroid_data)
-    centroid_probs = np.array(centroid_probs)
-    centroid_probs_sharpen = sharpen(centroid_probs)
+    if centroid_data:
+        centroid_data = np.array(centroid_data)
+        centroid_probs = np.array(centroid_probs)
+        centroid_probs_sharpen = sharpen(centroid_probs)
+    else:
+        centroid_data = np.empty((0, *inc_data.shape[1:]), dtype=inc_data.dtype)
+        centroid_probs_sharpen = np.empty(
+            (0, num_classes), dtype=teacher_inc_probs.dtype
+        )
 
     # (3) train Mp: Train Pp=Mp(X_mix), Loss=CrossEntropy(Pp, Y_mix)
     mix_data = np.concatenate([aux_data, selected_data, centroid_data], axis=0)
@@ -216,10 +220,14 @@ def iterate_repair_model(
 
     # 3. Get Dconf{Xs, Ys} for adaptation: Dconf consists of the top 10% of data from Ds (sorted by Ys_prob)
     select_probs_max = np.max(selected_probs, axis=-1)  # [N]
-    sample_size = len(selected_probs) // 10
-    sample_idx = np.argpartition(select_probs_max, -sample_size)[-sample_size:]
-    conf_data = selected_data[sample_idx]
-    conf_labels = selected_probs[sample_idx]
+    sample_size = int(len(selected_probs) * conf_ratio)
+    if sample_size > 0:
+        sample_idx = np.argpartition(select_probs_max, -sample_size)[-sample_size:]
+        conf_data = selected_data[sample_idx]
+        conf_labels = selected_probs[sample_idx]
+    else:
+        conf_data = np.empty((0, *inc_data.shape[1:]), dtype=inc_data.dtype)
+        conf_labels = np.empty((0, num_classes), dtype=teacher_inc_probs.dtype)
 
     return conf_data, conf_labels
 
@@ -335,9 +343,23 @@ def sharpen(prob_max, T=1, axis=-1):
     return prob_max / np.sum(prob_max, axis=-1, keepdims=True)
 
 
+def evaluate_model(data_loader, model, device, args):
+    return model_test(
+        data_loader,
+        model,
+        device=device,
+        compute_map=getattr(args, "eval_map", False),
+        map_batch_size=getattr(args, "map_batch_size", 512),
+    )
+
+
 def execute(args):
+    set_global_seed(getattr(args, "seed", None))
+
     # 1. get public parameters
-    num_classes = settings.num_classes_dict[args.dataset]
+    num_classes = settings.get_num_classes(
+        args.dataset, getattr(args, "num_classes", None)
+    )
     kwargs = parse_kwargs(args.kwargs)
     case = settings.get_case(args.noise_ratio, args.noise_type, args.balanced)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -495,14 +517,14 @@ def execute(args):
         print(
             "---------------------working model test before------------------------------"
         )
-        working_model_test_before = model_test(
-            test_dataloader, working_model, device=device
+        working_model_test_before = evaluate_model(
+            test_dataloader, working_model, device, args
         )
         print(
             "---------------------teacher model test before------------------------------"
         )
-        teacher_model_test_before = model_test(
-            test_dataloader, lip_teacher_model, device=device
+        teacher_model_test_before = evaluate_model(
+            test_dataloader, lip_teacher_model, device, args
         )
 
         # (2) Construct datasets: Dtr、 Da、Dts
@@ -542,11 +564,11 @@ def execute(args):
         np.save(conf_label_path, conf_labels)
 
         # 4. Test the performance of Dts on Mp after repair
-        working_model_after_repair = model_test(
-            test_dataloader, working_model, device=device
+        working_model_after_repair = evaluate_model(
+            test_dataloader, working_model, device, args
         )
-        teacher_model_after_repair = model_test(
-            test_dataloader, lip_teacher_model, device=device
+        teacher_model_after_repair = evaluate_model(
+            test_dataloader, lip_teacher_model, device, args
         )
 
         logging.info(f"Test results before restore: {working_model_test_before}")
@@ -575,6 +597,9 @@ def execute(args):
     aux_labels_onehot = np.eye(num_classes)[aux_labels]
     aug_data = aux_data
     aug_labels = aux_labels_onehot
+    if tta_only is None and conf_data is not None and len(conf_data) > 0:
+        aug_data = np.concatenate([aux_data, conf_data], axis=0)
+        aug_labels = np.concatenate([aux_labels_onehot, conf_labels], axis=0)
 
     if tta_only is not None:
         if tta_only == 0:
@@ -606,11 +631,11 @@ def execute(args):
             print(
                 "---------------------working model test before------------------------------"
             )
-            model_test(test_dataloader, working_model, device=device)
+            evaluate_model(test_dataloader, working_model, device, args)
             print(
                 "---------------------teacher model test before------------------------------"
             )
-            model_test(test_dataloader, lip_teacher_model, device=device)
+            evaluate_model(test_dataloader, lip_teacher_model, device, args)
 
     # (2) Iterative data adaptation process: Update Mp and Mt based on the mixed Dts
     for i in range(adapt_iter_num):
@@ -637,11 +662,11 @@ def execute(args):
         )
 
     # 6. Test the performance of Dts on Mp after adaptation
-    working_model_after_adapt = model_test(
-        test_dataloader, working_model, device=device
+    working_model_after_adapt = evaluate_model(
+        test_dataloader, working_model, device, args
     )
-    teacher_model_after_adapt = model_test(
-        test_dataloader, lip_teacher_model, device=device
+    teacher_model_after_adapt = evaluate_model(
+        test_dataloader, lip_teacher_model, device, args
     )
 
     print(

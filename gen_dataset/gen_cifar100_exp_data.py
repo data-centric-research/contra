@@ -65,6 +65,7 @@ def create_cifar100_npy_files(
     noise_ratio=0.2,
     num_versions=4,
     retention_ratios=[0.5, 0.3, 0.1, 0.05],
+    rehearsal_ratio=0.1,
     balanced=False,
     split_ratio=0.5,
 ):
@@ -95,7 +96,13 @@ def create_cifar100_npy_files(
 
     print("Splitting the dataset into initial and incremental pools...")
     D_inc_data, D_inc_labels = split(
-        dataset_name, case, train_dataset, test_dataset, num_classes
+        dataset_name,
+        case,
+        train_dataset,
+        test_dataset,
+        num_classes,
+        split_ratio=split_ratio,
+        rehearsal_ratio=rehearsal_ratio,
     )
 
     # Read CIFAR-100 classes
@@ -351,6 +358,13 @@ def main():
     )
 
     parser.add_argument(
+        "--rehearsal_ratio",
+        type=float,
+        default=0.1,
+        help="Rehearsal buffer ratio sampled from the clean initial split.",
+    )
+
+    parser.add_argument(
         "--split_ratio",
         type=float,
         default=0.5,
@@ -366,6 +380,7 @@ def main():
         noise_ratio=args.noise_ratio,
         num_versions=args.num_versions,
         retention_ratios=args.retention_ratios,
+        rehearsal_ratio=args.rehearsal_ratio,
         balanced=args.balanced,
         split_ratio=args.split_ratio,
     )

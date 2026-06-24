@@ -21,6 +21,7 @@ from core_model.dataset import get_dataset_loader
 from args_paser import parse_args
 from configs import settings
 from core_model.custom_model import load_custom_model, ClassifierWrapper
+from core_model.reproducibility import set_global_seed
 
 
 logger = logging.getLogger(__name__)
@@ -86,10 +87,11 @@ def clean_accuracy(model, x, y, batch_size, save_path=None):
 
 def evaluate(description):
     custom_args = parse_args()
+    set_global_seed(custom_args.seed)
     case = settings.get_case(custom_args.noise_ratio, custom_args.noise_type, custom_args.balanced)
     step = getattr(custom_args, "step", 1)
     uni_name = getattr(custom_args, "uni_name", None)
-    num_classes = settings.num_classes_dict[custom_args.dataset]
+    num_classes = settings.get_num_classes(custom_args.dataset, custom_args.num_classes)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # get corrected dataset and model path

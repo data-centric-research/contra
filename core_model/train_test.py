@@ -84,12 +84,59 @@ def model_train(
             print(f"Model has saved to {save_path}.")
 
 
-def model_test(data_loader, model, device="cuda"):
+def mean_average_precision(embeddings, labels, batch_size=512):
+    embeddings = embeddings.astype(np.float32, copy=False)
+    labels = np.asarray(labels)
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    embeddings = embeddings / np.maximum(norms, 1e-12)
+
+    num_samples = len(labels)
+    ranks = np.arange(1, num_samples + 1, dtype=np.float32)
+    average_precisions = []
+
+    for start in range(0, num_samples, batch_size):
+        end = min(start + batch_size, num_samples)
+        batch_embeddings = embeddings[start:end]
+        similarities = np.matmul(batch_embeddings, embeddings.T)
+
+        self_indices = np.arange(start, end)
+        similarities[np.arange(end - start), self_indices] = -np.inf
+
+        order = np.argsort(-similarities, axis=1)
+        matches = labels[order] == labels[self_indices, None]
+        matches &= order != self_indices[:, None]
+
+        positives = np.sum(labels[None, :] == labels[self_indices, None], axis=1) - 1
+        valid = positives > 0
+        if not np.any(valid):
+            continue
+
+        cumulative_matches = np.cumsum(matches, axis=1)
+        precision_at_k = cumulative_matches / ranks
+        ap = np.sum(precision_at_k * matches, axis=1)
+        average_precisions.extend((ap[valid] / positives[valid]).tolist())
+
+    if not average_precisions:
+        return 0.0
+    return float(np.mean(average_precisions))
+
+
+def model_test(
+    data_loader, model, device="cuda", compute_map=False, map_batch_size=512
+):
     eval_results = {}
 
-    predicts, probs, labels = model_forward(
-        data_loader, model, device, output_targets=True
+    forward_outputs = model_forward(
+        data_loader,
+        model,
+        device,
+        output_embedding=compute_map,
+        output_targets=True,
     )
+    if compute_map:
+        predicts, probs, embeddings, labels = forward_outputs
+    else:
+        predicts, probs, labels = forward_outputs
 
     # global acc
     global_acc = np.mean(predicts == labels)
@@ -103,6 +150,13 @@ def model_test(data_loader, model, device="cuda"):
         class_acc = np.mean(predicts[cls_index] == labels[cls_index])
         print("label: %s, acc: %.2f" % (label, class_acc * 100))
         eval_results["label_" + str(label.item())] = class_acc.item()
+
+    if compute_map:
+        retrieval_map = mean_average_precision(
+            embeddings, labels, batch_size=map_batch_size
+        )
+        print("test_mAP: %.2f" % (retrieval_map * 100))
+        eval_results["mAP"] = retrieval_map
 
     return eval_results
 

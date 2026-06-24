@@ -10,6 +10,7 @@ import torch.nn as nn
 from torchvision import transforms
 from core_model.optimizer import create_optimizer_scheduler
 from core_model.custom_model import ClassifierWrapper, load_custom_model
+from core_model.reproducibility import set_global_seed
 from configs import settings
 
 from torch.utils.data import DataLoader, Dataset
@@ -18,19 +19,8 @@ from torchvision.transforms import v2
 from train_test_utils import train_model
 
 
-def get_num_of_classes(dataset_name):
-    if dataset_name == "cifar-10":
-        num_classes = 10
-    elif dataset_name == "pet-37":
-        num_classes = 37
-    elif dataset_name == "cifar-100":
-        num_classes = 100
-    elif dataset_name == "food-101":
-        num_classes = 101
-    else:
-        raise ValueError(f"Unsupported dataset type: {dataset_name}")
-
-    return num_classes
+def get_num_of_classes(dataset_name, override=None):
+    return settings.get_num_classes(dataset_name, override)
 
 
 def load_dataset(file_path, is_data=True):
@@ -73,7 +63,7 @@ def train_step(
 
     # num_classes = 10 if dataset_name == "cifar-10" else 100
     dataset_name = args.dataset
-    num_classes = get_num_of_classes(dataset_name)
+    num_classes = get_num_of_classes(dataset_name, args.num_classes)
 
     print(f"===== Executing step: {args.step} =====")
     print(f"Dataset: {dataset_name}")
@@ -296,6 +286,7 @@ def train_step(
 
 def main():
     args = parse_args()
+    set_global_seed(args.seed)
 
     writer = None
     if args.use_tensorboard:

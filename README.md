@@ -10,6 +10,7 @@ CONTRA combines a fixed rehearsal buffer, teacher-student noisy-label refinement
 ```text
 args_paser.py                 Shared command-line parser
 run_experiment.py             Raw and incremental training entry point
+run_contra.py                 CONTRA refinement and request-time adaptation entry point
 core_model/                   CONTRA training, refinement, and adaptation code
 gen_dataset/                  Dataset split and noisy incremental data generation
 configs/                      Dataset paths, class names, and class mappings
@@ -117,9 +118,9 @@ data/cifar-10/gen/nr_0.2_nt_symmetric_balanced/
 | CIFAR-100 | WideResNet-40-2 | `cifar-wideresnet40` |
 | Oxford-IIIT Pet | WideResNet-50-2 | `wideresnet50` |
 
-## Training
+## Training and CONTRA Adaptation
 
-Run step 0 before later incremental stages because each stage loads the previous checkpoint from `ckpt/`.
+Run step 0 before later incremental stages because each stage loads the previous checkpoint from `ckpt/`. For stages 1--4, first train the raw worker for that stage, then run CONTRA refinement and request-time adaptation.
 
 ### CIFAR-10 Step 0
 
@@ -137,7 +138,7 @@ CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
   --batch_size 128
 ```
 
-### CIFAR-10 Step 1
+### CIFAR-10 Step 1 Raw Worker
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
@@ -150,14 +151,68 @@ CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
   --num_epochs 50 \
   --learning_rate 0.05 \
   --optimizer adam \
+  --batch_size 128 \
+  --model_suffix worker_raw
+```
+
+### CIFAR-10 Step 1 CONTRA
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_contra.py \
+  --step 1 \
+  --model cifar-resnet18 \
+  --dataset cifar-10 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --num_epochs 50 \
+  --adapt_epochs 5 \
+  --learning_rate 0.05 \
+  --optimizer adam \
   --batch_size 128
 ```
 
-Repeat with `--step 2`, `--step 3`, and `--step 4`. Use `--dataset pet-37 --model wideresnet50` for Oxford-IIIT Pet and `--dataset cifar-100 --model cifar-wideresnet40 --noise_type asymmetric` for the CIFAR-100 retrieval-style setting.
+Add `--eval_map` to report retrieval mAP from penultimate-layer cosine rankings.
+
+Repeat the raw-worker and CONTRA commands with `--step 2`, `--step 3`, and `--step 4`. Use `--dataset pet-37 --model wideresnet50` for Oxford-IIIT Pet and `--dataset cifar-100 --model cifar-wideresnet40 --noise_type asymmetric --eval_map` for the CIFAR-100 retrieval-style setting.
 
 ## Baselines
 
 The paper separates source-free continual TTA baselines from source-available adaptation methods. The following local adapters are included for reproducibility checks.
+
+### Source-Available Rehearsal
+
+The Rehearsal baseline reuses the same fixed auxiliary buffer. First create the stage raw worker with a baseline-specific `--uni_name`, then fine-tune that worker on `aux_data.npy`.
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
+  --step 1 \
+  --model cifar-resnet18 \
+  --dataset cifar-10 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --num_epochs 50 \
+  --learning_rate 0.05 \
+  --optimizer adam \
+  --batch_size 128 \
+  --model_suffix worker_raw \
+  --uni_name Rehearsal
+
+CUDA_VISIBLE_DEVICES=0 python run_experiment.py \
+  --step 1 \
+  --model cifar-resnet18 \
+  --dataset cifar-10 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --num_epochs 50 \
+  --learning_rate 0.05 \
+  --optimizer adam \
+  --batch_size 128 \
+  --train_aux \
+  --uni_name Rehearsal
+```
 
 ### LNL Baselines
 
@@ -194,7 +249,113 @@ CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python baseline_code/sotta/run_sotta.py \
 
 ## Notes on Food-101 and WebVision
 
-The paper reports compact Food-101 and WebVision checks under the same staged tensor protocol. Public scripts include `food-101` in the shared data interface, but the raw Food-101/WebVision preprocessing used for the compact checks is not included here. To reproduce those checks, preprocess the datasets into the same `train_data.npy`, `train_label.npy`, `test_data.npy`, `test_label.npy`, and staged `step_<k>/train_*.npy` layout.
+The paper reports compact Food-101 and WebVision checks under the same staged tensor protocol. Use the shared ImageFolder/list-file preprocessing script to convert raw images into the same `.npy` layout used by CIFAR and Pet.
+
+ImageFolder-style directories:
+
+```bash
+PYTHONPATH=. python gen_dataset/gen_webvision_exp_data.py \
+  --dataset webvision \
+  --train_root ./data/webvision/raw/train \
+  --test_root ./data/webvision/raw/val \
+  --num_classes 100 \
+  --max_train_per_class 500 \
+  --max_test_per_class 100 \
+  --noise_type symmetric \
+  --noise_ratio 0.2 \
+  --balanced
+```
+
+WebVision-style list files are also supported. Each line may be `relative/path.jpg label` or `relative/path.jpg,label`.
+
+```bash
+PYTHONPATH=. python gen_dataset/gen_webvision_exp_data.py \
+  --dataset webvision \
+  --image_root ./data/webvision/raw \
+  --train_list ./data/webvision/train_filelist.txt \
+  --test_list ./data/webvision/val_filelist.txt \
+  --num_classes 100 \
+  --noise_type symmetric \
+  --noise_ratio 0.2 \
+  --balanced
+```
+
+For Food-101, use the same script with `--dataset food-101`, or point it at class-folder train/test directories.
+
+## Retrieval mAP and Corruption Checks
+
+Evaluate any saved checkpoint with the same accuracy/mAP code, including Raw, Rehearsal, CONTRA, LNL baselines, and TTA baselines:
+
+```bash
+PYTHONPATH=. python scripts/evaluate_checkpoint.py \
+  --step 4 \
+  --model cifar-wideresnet40 \
+  --dataset cifar-100 \
+  --noise_ratio 0.2 \
+  --noise_type asymmetric \
+  --balanced \
+  --model_suffix worker_tta \
+  --eval_map
+```
+
+Generate corrupted request streams from the clean `test_data.npy`:
+
+```bash
+PYTHONPATH=. python gen_dataset/gen_corruption_data.py \
+  --dataset pet-37 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --corruptions gaussian_noise gaussian_blur jpeg contrast
+```
+
+Then evaluate corrupted-to-clean ratios:
+
+```bash
+PYTHONPATH=. python scripts/evaluate_corruptions.py \
+  --step 4 \
+  --model wideresnet50 \
+  --dataset pet-37 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --model_suffix worker_tta \
+  --eval_map
+```
+
+## Batch Reproducibility
+
+Print or execute three-seed runs:
+
+```bash
+PYTHONPATH=. python scripts/run_multi_seed.py \
+  --method contra \
+  --seeds 42 43 44 \
+  --steps 0 1 2 3 4 \
+  --dataset pet-37 \
+  --model wideresnet50 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --eval_map
+```
+
+Print or execute hyper-parameter sweeps:
+
+```bash
+PYTHONPATH=. python scripts/run_sweep.py \
+  --preset mixup_alpha \
+  --values 0.2 0.4 0.8 \
+  --dataset pet-37 \
+  --model wideresnet50 \
+  --step 4 \
+  --noise_ratio 0.2 \
+  --noise_type symmetric \
+  --balanced \
+  --eval_map
+```
+
+Available sweep presets are `mixup_alpha`, `centroid_ratio`, `adapt_iter_num`, `rehearsal_ratio`, and `noise_ratio`. Add `--execute` to either batch script to run the printed commands.
 
 ## License
 

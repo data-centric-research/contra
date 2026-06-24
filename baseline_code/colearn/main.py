@@ -9,6 +9,7 @@ from core_model.dataset import get_dataset_loader
 from args_paser import parse_args
 from configs import settings
 from core_model.custom_model import load_custom_model, ClassifierWrapper
+from core_model.reproducibility import set_global_seed
 
 
 def resolve_lnl_checkpoint(dataset, case, model_name, step, uni_name):
@@ -67,7 +68,7 @@ def main():
     )
     step = custom_args.step
     uni_name = custom_args.uni_name
-    num_classes = settings.num_classes_dict[custom_args.dataset]
+    num_classes = settings.get_num_classes(custom_args.dataset, custom_args.num_classes)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Dynamically load the paper-aligned LNL baseline configuration.
@@ -85,8 +86,10 @@ def main():
     config = config_module.config
     config["epochs"] = custom_args.num_epochs
     config["batch_size"] = custom_args.batch_size
+    config["seed"] = custom_args.seed
 
     set_seed(config["seed"])
+    set_global_seed(config["seed"])
 
     if config["algorithm"] == "Coteachingplus":
         model = algorithms.Coteachingplus()

@@ -43,8 +43,16 @@ def make_arg_parser(parser=None):
             "cifar-100",
             "pet-37",
             "food-101",
+            "webvision",
         ],
-        help="Dataset name. Choose from: cifar-10, cifar-100, pet-37, food-101.",
+        help="Dataset name. Choose from: cifar-10, cifar-100, pet-37, food-101, webvision.",
+    )
+
+    parser.add_argument(
+        "--num_classes",
+        type=int,
+        default=None,
+        help="Override the dataset class count, useful for compact WebVision subsets.",
     )
 
     parser.add_argument(
@@ -108,6 +116,20 @@ def make_arg_parser(parser=None):
     )
 
     parser.add_argument(
+        "--eval_map",
+        action="store_true",
+        default=False,
+        help="Also report retrieval mAP from penultimate-layer embeddings.",
+    )
+
+    parser.add_argument(
+        "--map_batch_size",
+        type=int,
+        default=512,
+        help="Batch size used for cosine-similarity retrieval mAP evaluation.",
+    )
+
+    parser.add_argument(
         "--step",
         type=int,
         default=None,
@@ -133,6 +155,13 @@ def make_arg_parser(parser=None):
         type=str,
         default="0",
         help="Specify the GPU(s) to use, e.g., --gpu 0,1 for multi-GPU or --gpu 0 for single GPU",
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducible splits, training, and batch scripts.",
     )
 
     # Optimization options.
@@ -275,6 +304,20 @@ def make_arg_parser(parser=None):
         help="Mixup alpha (default: 0.4; matches ICANN manuscript)",
     )
 
+    parser.add_argument(
+        "--centroid_ratio",
+        type=float,
+        default=0.1,
+        help="Per-class nearest-centroid ratio for confident teacher guidance.",
+    )
+
+    parser.add_argument(
+        "--conf_ratio",
+        type=float,
+        default=0.1,
+        help="Top-confidence agreement ratio retained as TTA references.",
+    )
+
     # Additional keyword arguments.
     parser.add_argument(
         "--kwargs", nargs="*", help="Additional key=value arguments for hyperparameters"
@@ -318,7 +361,9 @@ def main():
     # Print the selected configuration.
     print(f"Running experiment with the following configuration:")
     print(f"  Dataset: {args.dataset}")
+    print(f"  Num Classes Override: {args.num_classes}")
     print(f"  Model: {args.model}")
+    print(f"  Seed: {args.seed}")
     print(f"  Pretrained: {args.pretrained}")
     print(f"  Noise Type: {args.noise_type}")
     print(f"  Noise ratio: {args.noise_ratio}")
@@ -329,6 +374,7 @@ def main():
         print(f"  Momentum: {args.momentum}")
     print(f"  Weight Decay: {args.weight_decay}")
     print(f"  Number of Epochs: {args.num_epochs}")
+    print(f"  Eval mAP: {args.eval_map}")
     print(f"  Use Early Stopping: {args.use_early_stopping}")
     if args.use_early_stopping:
         print(f"  Early Stopping Patience: {args.early_stopping_patience}")
@@ -337,6 +383,8 @@ def main():
         )
     print(f"  Repair Iterations: {args.repair_iter_num}")
     print(f"  Adaptation Iterations: {args.adapt_iter_num}")
+    print(f"  Centroid Ratio: {args.centroid_ratio}")
+    print(f"  Confidence Ratio: {args.conf_ratio}")
 
     print(f"Additional kwargs: {kwargs}")
 
