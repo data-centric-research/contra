@@ -18,11 +18,14 @@ baseline_code/colearn/        LNL baselines: Co-teaching, Co-teaching+, JoCoR, D
 baseline_code/cotta-main/     CoTTA baseline adapter
 baseline_code/PLF-main/       PLF baseline adapter
 baseline_code/sotta/          SoTTA baseline adapter
+Dockerfile                    Reproducible CPU container environment
+docker-compose.yml            Optional mounted-volume Docker Compose entry point
+README_DOCKER.md              Docker build, run, and troubleshooting guide
 ```
 
 ## Environment
 
-Python 3.10 is recommended. A local virtual environment or Conda environment is sufficient; this repository does not require a Dockerfile.
+Python 3.10 is recommended. For a local virtual environment or Conda environment:
 
 ```bash
 python -m venv .venv
@@ -36,6 +39,13 @@ On Windows PowerShell:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+```
+
+For a reproducible CPU Docker environment, see [README_DOCKER.md](README_DOCKER.md):
+
+```bash
+docker build -t contra-repro:cpu .
+docker run --rm contra-repro:cpu python run_contra.py --help
 ```
 
 ## Dataset Generation

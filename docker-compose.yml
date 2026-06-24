@@ -1,0 +1,16 @@
+services:
+  contra:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: contra-repro:cpu
+    working_dir: /workspace
+    environment:
+      PYTHONPATH: /workspace
+    volumes:
+      - ./data:/workspace/data
+      - ./ckpt:/workspace/ckpt
+      - ./logs:/workspace/logs
+      - ./runs:/workspace/runs
+    stdin_open: true
+    tty: true
