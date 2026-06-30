@@ -6,6 +6,16 @@ import torch.nn as nn
 from torchvision.transforms import v2
 
 
+def _resolve_device(device):
+    if device is None:
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if isinstance(device, str):
+        device = torch.device(device)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        return torch.device("cpu")
+    return device
+
+
 def model_train(
     train_loader,
     model,
@@ -23,6 +33,7 @@ def model_train(
 ):
     print(f"Training model on {args.dataset}")
 
+    device = _resolve_device(device)
     model = model.to(device)
 
     if mix_classes > 0:
@@ -124,6 +135,7 @@ def mean_average_precision(embeddings, labels, batch_size=512):
 def model_test(
     data_loader, model, device="cuda", compute_map=False, map_batch_size=512
 ):
+    device = _resolve_device(device)
     eval_results = {}
 
     forward_outputs = model_forward(
@@ -164,6 +176,7 @@ def model_test(
 def model_forward(
     test_loader, model, device="cuda", output_embedding=False, output_targets=False
 ):
+    device = _resolve_device(device)
     model.to(device)
     model.eval()
 

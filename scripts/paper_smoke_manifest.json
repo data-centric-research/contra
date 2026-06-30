@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "defaults": {
+    "num_epochs": 1,
+    "adapt_epochs": 1,
+    "batch_size": 128,
+    "learning_rate": 0.05,
+    "optimizer": "adam",
+    "seed": 42,
+    "balanced": true
+  },
+  "jobs": [
+    {"id": "cifar10_sym_gen", "kind": "gen", "dataset": "cifar-10", "generator": "gen_cifar10_exp_data.py", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s0", "kind": "step0", "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s1_raw", "kind": "raw", "step": 1, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s1_contra", "kind": "contra", "step": 1, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s2_raw", "kind": "raw", "step": 2, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s2_contra", "kind": "contra", "step": 2, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s3_raw", "kind": "raw", "step": 3, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s3_contra", "kind": "contra", "step": 3, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s4_raw", "kind": "raw", "step": 4, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s4_contra", "kind": "contra", "step": 4, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s4_eval", "kind": "eval", "step": 4, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2, "model_suffix": "worker_tta"},
+
+    {"id": "cifar10_sym_s1_rehearsal", "kind": "rehearsal", "step": 1, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "cifar10_sym_s1_coteaching", "kind": "lnl", "step": 1, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2, "uni_name": "Coteaching"},
+    {"id": "cifar10_sym_s1_jocor", "kind": "lnl", "step": 1, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2, "uni_name": "JoCoR"},
+    {"id": "cifar10_sym_s1_dividemix", "kind": "lnl", "step": 1, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2, "uni_name": "DivideMix", "num_epochs": 2},
+    {"id": "cifar10_sym_s1_cotta", "kind": "tta", "step": 1, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2, "uni_name": "CoTTA"},
+    {"id": "cifar10_sym_s1_plf", "kind": "tta", "step": 1, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2, "uni_name": "PLF"},
+    {"id": "cifar10_sym_s1_sotta", "kind": "tta", "step": 1, "dataset": "cifar-10", "model": "cifar-resnet18", "noise_type": "symmetric", "noise_ratio": 0.2, "uni_name": "SoTTA"},
+
+    {"id": "cifar100_asy_gen", "kind": "gen", "dataset": "cifar-100", "generator": "gen_cifar100_exp_data.py", "noise_type": "asymmetric", "noise_ratio": 0.2},
+    {"id": "cifar100_asy_s0", "kind": "step0", "dataset": "cifar-100", "model": "cifar-wideresnet40", "noise_type": "asymmetric", "noise_ratio": 0.2},
+    {"id": "cifar100_asy_s1_raw", "kind": "raw", "step": 1, "dataset": "cifar-100", "model": "cifar-wideresnet40", "noise_type": "asymmetric", "noise_ratio": 0.2},
+    {"id": "cifar100_asy_s1_contra", "kind": "contra", "step": 1, "dataset": "cifar-100", "model": "cifar-wideresnet40", "noise_type": "asymmetric", "noise_ratio": 0.2},
+    {"id": "cifar100_asy_s2_raw", "kind": "raw", "step": 2, "dataset": "cifar-100", "model": "cifar-wideresnet40", "noise_type": "asymmetric", "noise_ratio": 0.2},
+    {"id": "cifar100_asy_s2_contra", "kind": "contra", "step": 2, "dataset": "cifar-100", "model": "cifar-wideresnet40", "noise_type": "asymmetric", "noise_ratio": 0.2},
+    {"id": "cifar100_asy_s3_raw", "kind": "raw", "step": 3, "dataset": "cifar-100", "model": "cifar-wideresnet40", "noise_type": "asymmetric", "noise_ratio": 0.2},
+    {"id": "cifar100_asy_s3_contra", "kind": "contra", "step": 3, "dataset": "cifar-100", "model": "cifar-wideresnet40", "noise_type": "asymmetric", "noise_ratio": 0.2},
+    {"id": "cifar100_asy_s4_raw", "kind": "raw", "step": 4, "dataset": "cifar-100", "model": "cifar-wideresnet40", "noise_type": "asymmetric", "noise_ratio": 0.2},
+    {"id": "cifar100_asy_s4_contra", "kind": "contra", "step": 4, "dataset": "cifar-100", "model": "cifar-wideresnet40", "noise_type": "asymmetric", "noise_ratio": 0.2, "eval_map": true},
+    {"id": "cifar100_asy_s4_eval", "kind": "eval", "step": 4, "dataset": "cifar-100", "model": "cifar-wideresnet40", "noise_type": "asymmetric", "noise_ratio": 0.2, "model_suffix": "worker_tta", "eval_map": true},
+
+    {"id": "pet37_sym_gen", "kind": "gen", "dataset": "pet-37", "generator": "gen_pet37_exp_data.py", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "pet37_sym_s0", "kind": "step0", "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "pet37_sym_s1_raw", "kind": "raw", "step": 1, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "pet37_sym_s1_contra", "kind": "contra", "step": 1, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "pet37_sym_s2_raw", "kind": "raw", "step": 2, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "pet37_sym_s2_contra", "kind": "contra", "step": 2, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "pet37_sym_s3_raw", "kind": "raw", "step": 3, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "pet37_sym_s3_contra", "kind": "contra", "step": 3, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "pet37_sym_s4_raw", "kind": "raw", "step": 4, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "pet37_sym_s4_contra", "kind": "contra", "step": 4, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2, "eval_map": true},
+    {"id": "pet37_sym_s4_eval", "kind": "eval", "step": 4, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2, "model_suffix": "worker_tta", "eval_map": true},
+
+    {"id": "pet37_sym_corrupt_gen", "kind": "corrupt_gen", "dataset": "pet-37", "noise_type": "symmetric", "noise_ratio": 0.2},
+    {"id": "pet37_sym_corrupt_eval", "kind": "corrupt_eval", "step": 4, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.2, "model_suffix": "worker_tta", "eval_map": true},
+
+    {"id": "pet37_nr01_gen", "kind": "gen", "dataset": "pet-37", "generator": "gen_pet37_exp_data.py", "noise_type": "symmetric", "noise_ratio": 0.1},
+    {"id": "pet37_nr01_s0", "kind": "step0", "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.1},
+    {"id": "pet37_nr01_s4_raw", "kind": "raw", "step": 4, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.1},
+    {"id": "pet37_nr01_s4_contra", "kind": "contra", "step": 4, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.1},
+
+    {"id": "pet37_nr03_gen", "kind": "gen", "dataset": "pet-37", "generator": "gen_pet37_exp_data.py", "noise_type": "symmetric", "noise_ratio": 0.3},
+    {"id": "pet37_nr03_s0", "kind": "step0", "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.3},
+    {"id": "pet37_nr03_s4_raw", "kind": "raw", "step": 4, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.3},
+    {"id": "pet37_nr03_s4_contra", "kind": "contra", "step": 4, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.3},
+
+    {"id": "pet37_nr05_gen", "kind": "gen", "dataset": "pet-37", "generator": "gen_pet37_exp_data.py", "noise_type": "symmetric", "noise_ratio": 0.5},
+    {"id": "pet37_nr05_s0", "kind": "step0", "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.5},
+    {"id": "pet37_nr05_s4_raw", "kind": "raw", "step": 4, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.5},
+    {"id": "pet37_nr05_s4_contra", "kind": "contra", "step": 4, "dataset": "pet-37", "model": "wideresnet50", "noise_type": "symmetric", "noise_ratio": 0.5}
+  ],
+  "skipped_no_data": [
+    {"id": "webvision_compact", "reason": "app/experiment/04_data 无 WebVision 原始数据"},
+    {"id": "food101_compact", "reason": "app/experiment/04_data 无 Food-101 原始数据"}
+  ]
+}
