@@ -171,8 +171,11 @@ def create_imagefolder_npy_files(
         max_per_class=max_test_per_class,
     )
 
+    dataset_root = settings.dataset_paths.get(
+        dataset_name, os.path.join(settings.root_dir, "data", dataset_name)
+    )
     class_map_path = os.path.join(
-        settings.root_dir, "data", dataset_name, "gen", "class_map.json"
+        dataset_root, "gen", "class_map.json"
     )
     os.makedirs(os.path.dirname(class_map_path), exist_ok=True)
     with open(class_map_path, "w", encoding="utf-8") as handle:

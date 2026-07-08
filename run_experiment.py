@@ -262,7 +262,7 @@ def train_step(
         model_loaded = load_custom_model(
             model_name=model_name,
             num_classes=num_classes,
-            load_pretrained=args.pretrained,
+            load_pretrained=False,
         )
         current_model = ClassifierWrapper(model_loaded, num_classes)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

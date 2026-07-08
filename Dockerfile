@@ -41,6 +41,7 @@ RUN python -m py_compile \
         gen_dataset/gen_cifar10_exp_data.py \
         gen_dataset/gen_cifar100_exp_data.py \
         gen_dataset/gen_pet37_exp_data.py \
+        gen_dataset/protocol.py \
         gen_dataset/gen_webvision_exp_data.py \
         gen_dataset/gen_corruption_data.py \
         scripts/evaluate_checkpoint.py \

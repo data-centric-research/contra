@@ -66,10 +66,27 @@ def _sample_rehearsal(initial_data, initial_labels, num_classes, rehearsal_ratio
     )
 
 
-def _inject_noise(labels, sample_indices, noise_type, noise_ratio, num_classes, rng):
+def _dataset_gen_root(dataset):
+    dataset_root = settings.dataset_paths.get(
+        dataset, os.path.join(settings.root_dir, "data", dataset)
+    )
+    return os.path.join(dataset_root, "gen")
+
+
+def _inject_noise(
+    labels,
+    sample_indices,
+    noise_type,
+    noise_ratio,
+    num_classes,
+    rng,
+    ratio_base_count=None,
+):
     noisy_labels = labels.copy()
     sample_indices = np.asarray(sample_indices)
-    noisy_count = int(len(sample_indices) * noise_ratio)
+    if ratio_base_count is None:
+        ratio_base_count = len(sample_indices)
+    noisy_count = min(len(sample_indices), int(ratio_base_count * noise_ratio))
     changed = []
     if noisy_count <= 0:
         return noisy_labels, changed
@@ -178,6 +195,7 @@ def create_staged_tensor_protocol(
             noise_ratio,
             num_classes,
             rng,
+            ratio_base_count=len(stage_indices),
         )
 
         permutation = rng.permutation(len(stage_indices))
@@ -188,9 +206,7 @@ def create_staged_tensor_protocol(
         _save_dataset_file(dataset_name, case, "train_label", stage_labels, step=step)
         noise_log.append({"step": step, "changed": changed})
 
-    metadata_path = os.path.join(
-        settings.root_dir, "data", dataset_name, "gen", case, "metadata.json"
-    )
+    metadata_path = os.path.join(_dataset_gen_root(dataset_name), case, "metadata.json")
     _ensure_parent(metadata_path)
     payload = {
         "dataset": dataset_name,

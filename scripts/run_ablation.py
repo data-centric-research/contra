@@ -77,19 +77,32 @@ def commands_for_ablation(args, name):
     if name not in ABLATIONS:
         raise ValueError(f"Unsupported ablation: {name}")
 
-    uni_name = None if name == "adapt_only" else f"ablation_{name}"
+    uni_name = f"ablation_{name}"
     commands = []
-    if uni_name is not None:
-        commands.append(
-            [
-                args.python,
-                "run_experiment.py",
-                *common_args(args, uni_name, step=0),
-            ]
-        )
+    commands.append(
+        [
+            args.python,
+            "run_experiment.py",
+            *common_args(args, None, step=0),
+        ]
+    )
+    commands.append(
+        [
+            args.python,
+            "run_experiment.py",
+            *common_args(args, uni_name, step=0),
+        ]
+    )
 
-    stage_range = [args.step] if name == "adapt_only" else range(1, args.step + 1)
     if name == "adapt_only":
+        for stage in range(1, args.step):
+            commands.append(
+                [
+                    args.python,
+                    "run_contra.py",
+                    *common_args(args, uni_name, step=stage),
+                ]
+            )
         commands.append(
             [
                 args.python,
@@ -99,6 +112,9 @@ def commands_for_ablation(args, name):
                 "worker_raw",
             ]
         )
+        stage_range = [args.step]
+    else:
+        stage_range = range(1, args.step + 1)
 
     for stage in stage_range:
         run_command = [
@@ -144,8 +160,14 @@ def main():
     args = parser.parse_args()
 
     commands = []
+    seen = set()
     for ablation in args.ablation:
-        commands.extend(commands_for_ablation(args, ablation))
+        for command in commands_for_ablation(args, ablation):
+            key = tuple(command)
+            if key in seen:
+                continue
+            commands.append(command)
+            seen.add(key)
 
     for command in commands:
         print(command_to_text(command))
