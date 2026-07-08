@@ -1,4 +1,4 @@
-FROM python:3.10.14-slim-bookworm
+FROM python:3.11.13-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -27,9 +27,8 @@ COPY requirements-docker.txt /tmp/requirements-docker.txt
 
 RUN python -m pip install -r /tmp/requirements-docker.txt \
     && python -m pip install \
-        --extra-index-url https://download.pytorch.org/whl/cpu \
-        torch==2.9.1+cpu \
-        torchvision==0.24.1+cpu
+        torch==2.6.0 \
+        torchvision==0.21.0
 
 COPY . .
 
@@ -47,6 +46,7 @@ RUN python -m py_compile \
         scripts/evaluate_checkpoint.py \
         scripts/evaluate_corruptions.py \
         scripts/run_multi_seed.py \
+        scripts/run_ablation.py \
         scripts/run_sweep.py
 
 CMD ["bash"]

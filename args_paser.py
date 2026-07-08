@@ -1,6 +1,8 @@
 import os
 import argparse
 
+from core_model.custom_model import SUPPORTED_MODELS
+
 # from run_experiment import run_experiment
 
 
@@ -59,15 +61,16 @@ def make_arg_parser(parser=None):
         "--model",
         type=str,
         required=True,
-        help="Select in (cifar-resnet18, cifar-wideresnet40, cifar-resnet50, resnet18, resnet50, resnet101, vgg19, wideresnet50)",
+        choices=SUPPORTED_MODELS,
+        help="Model backbone.",
     )
 
     # Model initialization and training options.
     parser.add_argument(
         "--pretrained",
-        action="store_true",
-        default=False,
-        help="If specified, use pretrained weights for the model",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Use ImageNet-pretrained weights for torchvision backbones; disable with --no-pretrained.",
     )
 
     parser.add_argument(
@@ -112,7 +115,7 @@ def make_arg_parser(parser=None):
         default=None,
         type=int,
         choices=[0, 1],
-        help="",
+        help="Ablation mode: 0 runs adaptation without prior repair; 1 runs adaptation from saved repair checkpoints.",
     )
 
     parser.add_argument(
@@ -207,7 +210,7 @@ def make_arg_parser(parser=None):
         "--weight_decay",
         type=check_positive,
         default=5e-4,
-        help="Weight decay for the optimizer (default: 0.0001).",
+        help="Weight decay for the optimizer (default: 0.0005).",
     )
 
     # Epoch and stopping options.
@@ -253,6 +256,13 @@ def make_arg_parser(parser=None):
         help="Enable early stopping if specified, otherwise train for the full number of epochs",
     )
 
+    parser.add_argument(
+        "--validation_ratio",
+        type=float,
+        default=0.1,
+        help="Class-balanced training split ratio used as validation when early stopping is enabled.",
+    )
+
     # Number of repair-training iterations.
     parser.add_argument(
         "--repair_iter_num",
@@ -265,7 +275,7 @@ def make_arg_parser(parser=None):
     parser.add_argument(
         "--adapt_iter_num",
         type=int,
-        default=2,
+        default=3,
         help="The number of iterations to adapt the model",
     )
 
@@ -316,6 +326,30 @@ def make_arg_parser(parser=None):
         type=float,
         default=0.1,
         help="Top-confidence agreement ratio retained as TTA references.",
+    )
+
+    parser.add_argument(
+        "--student_spnorm",
+        action="store_true",
+        help="Ablation: also apply spectral normalization to the student branch.",
+    )
+
+    parser.add_argument(
+        "--disable_agreement",
+        action="store_true",
+        help="Ablation: remove agreement samples D_a from repair and TTA references.",
+    )
+
+    parser.add_argument(
+        "--disable_centroid",
+        action="store_true",
+        help="Ablation: remove nearest-centroid disagreement samples from repair.",
+    )
+
+    parser.add_argument(
+        "--disable_mixup",
+        action="store_true",
+        help="Ablation: train on unmixed samples instead of Mixup pairs.",
     )
 
     # Additional keyword arguments.

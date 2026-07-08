@@ -69,9 +69,12 @@ def create_pet37_npy_files(
     retention_ratios=[0.5, 0.3, 0.1, 0.05],
     rehearsal_ratio=0.1,
     balanced=False,
+    seed=42,
+    force_resplit=False,
 ):
 
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng(seed)
+    torch.manual_seed(seed)
     dataset_name = "pet-37"
     num_classes = 37
     if gen_dir:
@@ -107,6 +110,8 @@ def create_pet37_npy_files(
         test_dataset,
         num_classes,
         rehearsal_ratio=rehearsal_ratio,
+        seed=seed,
+        force_resplit=force_resplit,
     )
 
     # Read classes of Oxford-Pets dataset
@@ -149,7 +154,6 @@ def create_pet37_npy_files(
     symmetric_noisy_classes_simple = set()
     asymmetric_noisy_classes_simple = set()
 
-    rng = np.random.default_rng(42)
     for t in range(num_versions):
         retention_ratio = retention_ratios[t]
         num_forget_samples = int(len(D_inc_forget_indices) * retention_ratio)
@@ -163,8 +167,13 @@ def create_pet37_npy_files(
             D_f_data = torch.empty(0, 3, 224, 224)
             D_f_labels = torch.empty(0, dtype=torch.long)
 
+        # Noise injection: draw from the designated noisy-class subset, but
+        # match the requested ratio against the whole stage dataset.
         noise_sample_indices = D_inc_noise_indices
-        num_noisy_samples = int(len(noise_sample_indices) * noise_ratio)
+        stage_sample_count = len(D_f_labels) + len(noise_sample_indices)
+        num_noisy_samples = min(
+            len(noise_sample_indices), int(stage_sample_count * noise_ratio)
+        )
         if num_noisy_samples > 0:
             noisy_indices = rng.choice(
                 noise_sample_indices, num_noisy_samples, replace=False
@@ -260,9 +269,6 @@ def create_pet37_npy_files(
 
 
 def main():
-    np.random.seed(42)
-    torch.manual_seed(42)
-
     parser = argparse.ArgumentParser(
         description="Generate PET-37 incremental datasets."
     )
@@ -315,8 +321,16 @@ def main():
         default=0.1,
         help="Rehearsal buffer ratio sampled from the clean initial split.",
     )
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--force_resplit",
+        action="store_true",
+        help="Regenerate the clean initial/incremental split even if cached files exist.",
+    )
 
     args = parser.parse_args()
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     create_pet37_npy_files(
         data_dir=args.data_dir,
@@ -327,6 +341,8 @@ def main():
         retention_ratios=args.retention_ratios,
         rehearsal_ratio=args.rehearsal_ratio,
         balanced=args.balanced,
+        seed=args.seed,
+        force_resplit=args.force_resplit,
     )
 
 

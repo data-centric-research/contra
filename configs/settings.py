@@ -72,7 +72,8 @@ def get_pretrain_ckpt_path(
 
 def get_dataset_path(dataset, case, type, step=None):
     """Generate and return model paths dynamically."""
-    path = os.path.join(root_dir, "data", dataset, "gen")
+    dataset_root = dataset_paths.get(dataset, os.path.join(root_dir, "data", dataset))
+    path = os.path.join(dataset_root, "gen")
     if case is not None:
         path = os.path.join(path, case)
     if step is not None and step >= 0:

@@ -233,7 +233,7 @@ def copy_model_and_optimizer(model, optimizer, args):
     loaded_model = load_custom_model(args.model, num_classes, load_pretrained=False)
     model_p0 = ClassifierWrapper(loaded_model, num_classes)
 
-    checkpoint = torch.load(load_model_path)
+    checkpoint = torch.load(load_model_path, map_location=device)
     model_p0.load_state_dict(checkpoint, strict=False)
     model_p0 = model_p0.to(device)
     model_anchor = deepcopy(model_p0)

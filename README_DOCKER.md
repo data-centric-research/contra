@@ -1,15 +1,15 @@
 # Docker Reproducibility Guide
 
-This repository includes a pinned CPU Docker environment for reproducing the released CONTRA code without relying on a host Python installation. The image keeps source code inside `/workspace` and expects datasets, checkpoints, logs, and run outputs to be mounted from the host.
+This repository includes a pinned Docker environment for reproducing the released CONTRA code without relying on a host Python installation. The image keeps source code inside `/workspace` and expects datasets, checkpoints, logs, and run outputs to be mounted from the host.
 
 ## What Is Pinned
 
-- Python base image: `python:3.10.14-slim-bookworm`
-- PyTorch CPU wheels: `torch==2.9.1+cpu`, `torchvision==0.24.1+cpu`
+- Python base image: `python:3.11.13-slim-bookworm`
+- PyTorch wheels: `torch==2.6.0`, `torchvision==0.21.0`
 - Python packaging tools: `pip==25.2`, `setuptools==80.9.0`, `wheel==0.45.1`
 - Non-PyTorch dependencies: see `requirements-docker.txt`
 
-The Docker image is CPU-first for portability. GPU runs are possible, but CUDA images and drivers vary by machine, so they are documented separately below.
+The Docker image is portable and can run on CPU. GPU-optimized runs are possible, but CUDA images and drivers vary by machine, so they are documented separately below.
 
 ## Prerequisites
 
@@ -97,25 +97,12 @@ python run_experiment.py \
   --learning_rate 0.05 \
   --optimizer adam \
   --batch_size 128 \
-  --seed 1
+  --seed 42
 ```
 
-For later incremental steps, train the raw worker first and then run CONTRA refinement/adaptation:
+For later incremental steps, run CONTRA refinement/adaptation directly. The command loads the previous `worker_restore` checkpoint and does not need a current-stage raw-worker checkpoint:
 
 ```bash
-python run_experiment.py \
-  --step 1 \
-  --model cifar-resnet18 \
-  --dataset cifar-10 \
-  --noise_ratio 0.2 \
-  --noise_type symmetric \
-  --balanced \
-  --num_epochs 50 \
-  --learning_rate 0.05 \
-  --optimizer adam \
-  --batch_size 128 \
-  --seed 1
-
 python run_contra.py \
   --step 1 \
   --model cifar-resnet18 \
@@ -124,10 +111,12 @@ python run_contra.py \
   --noise_type symmetric \
   --balanced \
   --num_epochs 50 \
+  --adapt_epochs 5 \
+  --adapt_iter_num 3 \
   --learning_rate 0.05 \
   --optimizer adam \
   --batch_size 128 \
-  --seed 1
+  --seed 42
 ```
 
 Use the helper scripts for repeated seeds or sweeps:
@@ -165,7 +154,7 @@ Mount these directories from the host whenever you run experiments. This keeps t
 
 ## GPU Variant
 
-The default Dockerfile installs CPU-only PyTorch wheels. For GPU runs, use a CUDA-compatible PyTorch base image or replace the PyTorch install line with the matching CUDA wheel index for your driver and CUDA runtime. Then launch with:
+For GPU-optimized runs, use a CUDA-compatible PyTorch base image or replace the PyTorch install line with the matching CUDA wheel index for your driver and CUDA runtime. Then launch with:
 
 ```bash
 docker run --gpus all --rm -it \
@@ -180,7 +169,7 @@ For exact publication-grade reruns, record the host GPU model, driver version, C
 
 ## Troubleshooting
 
-- If the build is slow, the PyTorch CPU wheels are usually the largest download.
+- If the build is slow, the PyTorch wheels are usually the largest download.
 - If Docker cannot see local files on Windows, check Docker Desktop file sharing permissions and use the PowerShell command form above.
 - If generated datasets are missing inside the container, confirm that the host `data/` directory is mounted to `/workspace/data`.
 - If you need bit-for-bit stronger reproducibility, pin the base image by digest after choosing the exact Docker registry image you want to archive.

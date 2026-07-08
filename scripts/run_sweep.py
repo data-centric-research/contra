@@ -63,13 +63,14 @@ def generator_command(args, value):
         args.noise_type,
         "--noise_ratio",
         str(args.noise_ratio if args.preset != "noise_ratio" else value),
+        "--seed",
+        str(args.seed),
     ]
     if args.balanced:
         command.append("--balanced")
     if args.preset == "rehearsal_ratio":
         command.extend(["--rehearsal_ratio", str(value)])
     if args.dataset in {"food-101", "webvision"}:
-        command.extend(["--seed", str(args.seed)])
         if args.train_root:
             command.extend(["--train_root", args.train_root])
         if args.test_root:
@@ -88,22 +89,14 @@ def generator_command(args, value):
     return command
 
 
-def raw_worker_command(args, value, step):
-    return [
-        args.python,
-        "run_experiment.py",
-        *common_args(args, step, value),
-        "--model_suffix",
-        "worker_raw",
-    ]
-
-
 def contra_command(args, value, step):
     command = [args.python, "run_contra.py", *common_args(args, step, value)]
     if args.preset == "mixup_alpha":
         command.extend(["--mixup_alpha", str(value)])
     elif args.preset == "centroid_ratio":
-        command.extend(["--centroid_ratio", str(value), "--conf_ratio", str(value)])
+        command.extend(["--centroid_ratio", str(value)])
+    elif args.preset == "conf_ratio":
+        command.extend(["--conf_ratio", str(value)])
     elif args.preset == "adapt_iter_num":
         command.extend(["--adapt_iter_num", str(int(value))])
     return command
@@ -123,7 +116,14 @@ def main():
     parser = argparse.ArgumentParser(description="Run or print hyper-parameter sweep commands.")
     parser.add_argument(
         "--preset",
-        choices=["mixup_alpha", "centroid_ratio", "adapt_iter_num", "rehearsal_ratio", "noise_ratio"],
+        choices=[
+            "mixup_alpha",
+            "centroid_ratio",
+            "conf_ratio",
+            "adapt_iter_num",
+            "rehearsal_ratio",
+            "noise_ratio",
+        ],
         required=True,
     )
     parser.add_argument("--values", type=float, nargs="+", required=True)
@@ -163,7 +163,6 @@ def main():
         )
         commands.append([args.python, "run_experiment.py", *common_args(args, 0, value)])
         for stage in range(1, args.step + 1):
-            commands.append(raw_worker_command(args, value, stage))
             commands.append(contra_command(args, value, stage))
         commands.append(eval_command(args, value))
 

@@ -52,7 +52,7 @@ def commands_for_seed(args, seed):
             continue
 
         method_name = args.method
-        if method_name in {"raw", "contra", "rehearsal"}:
+        if method_name in {"raw", "rehearsal"}:
             raw_command = [
                 args.python,
                 "run_experiment.py",

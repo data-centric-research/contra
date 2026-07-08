@@ -95,7 +95,9 @@ def train_step(
         print("Data used for training: train_data.npy and train_label.npy")
         print("Model used for training: ResNet18 initialized")
 
-        model_raw = load_custom_model(model_name, num_classes)
+        model_raw = load_custom_model(
+            model_name, num_classes, load_pretrained=args.pretrained
+        )
         model_raw = ClassifierWrapper(
             model_raw, num_classes=num_classes, freeze_weights=False
         )
@@ -113,6 +115,11 @@ def train_step(
             learning_rate=args.learning_rate,
             weight_decay=args.weight_decay,
             data_aug=args.data_aug,
+            use_early_stopping=args.use_early_stopping,
+            early_stopping_patience=args.early_stopping_patience,
+            early_stopping_accuracy_threshold=args.early_stopping_accuracy_threshold,
+            validation_ratio=args.validation_ratio,
+            seed=args.seed,
             writer=writer,
         )
         model_raw_path = settings.get_ckpt_path(
@@ -148,7 +155,9 @@ def train_step(
             print("Data used for training: step_0/train_data.npy and step_0/train_label.npy")
             print("Model used for training: ResNet18")
 
-            model_p0 = load_custom_model(model_name, num_classes)
+            model_p0 = load_custom_model(
+                model_name, num_classes, load_pretrained=args.pretrained
+            )
             model_p0 = ClassifierWrapper(model_p0, num_classes)
 
             print(f"Start training M_p0 on ({dataset_name})...")
@@ -165,6 +174,11 @@ def train_step(
                 learning_rate=args.learning_rate,
                 weight_decay=args.weight_decay,
                 data_aug=args.data_aug,
+                use_early_stopping=args.use_early_stopping,
+                early_stopping_patience=args.early_stopping_patience,
+                early_stopping_accuracy_threshold=args.early_stopping_accuracy_threshold,
+                validation_ratio=args.validation_ratio,
+                seed=args.seed,
                 writer=writer,
             )
             subdir = os.path.dirname(model_p0_path)
@@ -246,10 +260,13 @@ def train_step(
             )
 
         model_loaded = load_custom_model(
-            model_name=model_name, num_classes=num_classes, load_pretrained=False
+            model_name=model_name,
+            num_classes=num_classes,
+            load_pretrained=args.pretrained,
         )
         current_model = ClassifierWrapper(model_loaded, num_classes)
-        current_model.load_state_dict(torch.load(prev_model_path))
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        current_model.load_state_dict(torch.load(prev_model_path, map_location=device))
 
         print(f"Start training M_p{step} on ({dataset_name})...")
 
@@ -266,6 +283,11 @@ def train_step(
             learning_rate=args.learning_rate,
             weight_decay=args.weight_decay,
             data_aug=args.data_aug,
+            use_early_stopping=args.use_early_stopping,
+            early_stopping_patience=args.early_stopping_patience,
+            early_stopping_accuracy_threshold=args.early_stopping_accuracy_threshold,
+            validation_ratio=args.validation_ratio,
+            seed=args.seed,
             writer=writer,
         )
 
@@ -286,6 +308,7 @@ def train_step(
 
 def main():
     args = parse_args()
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     set_global_seed(args.seed)
 
     writer = None

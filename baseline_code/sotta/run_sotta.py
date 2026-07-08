@@ -71,6 +71,7 @@ def resolve_stage0_checkpoint(dataset, case, model_name, uni_name):
 
 def main():
     custom_args = parse_args()
+    os.environ["CUDA_VISIBLE_DEVICES"] = custom_args.gpu
     set_global_seed(custom_args.seed)
     case = settings.get_case(
         custom_args.noise_ratio, custom_args.noise_type, custom_args.balanced)
@@ -94,7 +95,7 @@ def main():
     loaded_model = load_custom_model(
         custom_args.model, num_classes, load_pretrained=False)
     base_model = ClassifierWrapper(loaded_model, num_classes)
-    checkpoint = torch.load(load_model_path)
+    checkpoint = torch.load(load_model_path, map_location=device)
     base_model.load_state_dict(checkpoint, strict=False)
     base_model.to(device)
 

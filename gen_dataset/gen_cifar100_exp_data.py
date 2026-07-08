@@ -68,9 +68,12 @@ def create_cifar100_npy_files(
     rehearsal_ratio=0.1,
     balanced=False,
     split_ratio=0.5,
+    seed=42,
+    force_resplit=False,
 ):
 
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng(seed)
+    torch.manual_seed(seed)
     dataset_name = "cifar-100"
     num_classes = 100
     if gen_dir:
@@ -103,6 +106,8 @@ def create_cifar100_npy_files(
         num_classes,
         split_ratio=split_ratio,
         rehearsal_ratio=rehearsal_ratio,
+        seed=seed,
+        force_resplit=force_resplit,
     )
 
     # Read CIFAR-100 classes
@@ -149,8 +154,6 @@ def create_cifar100_npy_files(
     symmetric_noisy_classes_simple = set()
     asymmetric_noisy_classes_simple = set()
 
-    rng = np.random.default_rng(42)
-
     # Generate the incremental version of the dataset
     for t in range(num_versions):
         retention_ratio = retention_ratios[t]
@@ -168,9 +171,13 @@ def create_cifar100_npy_files(
             D_f_data = torch.empty(0, 3, 32, 32)
             D_f_labels = torch.empty(0, dtype=torch.long)
 
-        # Noise injection: inject noise into samples of noisy classes
+        # Noise injection: draw from the designated noisy-class subset, but
+        # match the requested ratio against the whole stage dataset.
         noise_sample_indices = D_inc_noise_indices
-        num_noisy_samples = int(len(noise_sample_indices) * noise_ratio)
+        stage_sample_count = len(D_f_labels) + len(noise_sample_indices)
+        num_noisy_samples = min(
+            len(noise_sample_indices), int(stage_sample_count * noise_ratio)
+        )
 
         if num_noisy_samples > 0:
             noisy_indices = rng.choice(
@@ -307,9 +314,6 @@ def create_cifar100_npy_files(
 
 
 def main():
-    np.random.seed(42)
-    torch.manual_seed(42)
-
     parser = argparse.ArgumentParser(
         description="Generate CIFAR-100 incremental datasets."
     )
@@ -370,8 +374,16 @@ def main():
         default=0.5,
         help="Ratio for class-balanced splitting, default is 0.5",
     )
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--force_resplit",
+        action="store_true",
+        help="Regenerate the clean initial/incremental split even if cached files exist.",
+    )
 
     args = parser.parse_args()
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     create_cifar100_npy_files(
         data_dir=args.data_dir,
@@ -383,6 +395,8 @@ def main():
         rehearsal_ratio=args.rehearsal_ratio,
         balanced=args.balanced,
         split_ratio=args.split_ratio,
+        seed=args.seed,
+        force_resplit=args.force_resplit,
     )
 
 

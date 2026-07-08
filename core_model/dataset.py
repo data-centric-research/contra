@@ -29,20 +29,14 @@ class BaseTensorDataset(Dataset):
 
 def normalize_dataset(dataset, channel_first=True, mean=None, std=None):
     shape = dataset.shape
-    channel_idx = np.where(np.array(shape)[1:] == 3)[0]
 
     # modify shape to [N, C, H, W]
     axes = None
-    if channel_first:
-        if channel_idx == 2:
-            axes = [0, 2, 1, 3]
-        elif channel_idx == 3:
+    if len(shape) == 4:
+        if channel_first and shape[1] != 3 and shape[-1] == 3:
             axes = [0, 3, 1, 2]
-    else:
-        if channel_idx == 1:
+        elif not channel_first and shape[1] == 3:
             axes = [0, 2, 3, 1]
-        elif channel_idx == 2:
-            axes = [0, 1, 3, 2]
 
     if axes is not None:
         dataset = np.transpose(dataset, axes)
@@ -81,7 +75,7 @@ class MixupDataset(Dataset):
         transforms=None,
         mean=None,
         std=None,
-        first_max=True,
+        first_max=False,
     ):
         # modify shape to [N, H, W, C]
         self.data_first = data_pair[0]
@@ -98,6 +92,11 @@ class MixupDataset(Dataset):
         return len(self.label_first)
 
     def __getitem__(self, index):
+        data_first = self.data_first[index]
+        label_first = self.label_first[index]
+        if self.mixup_alpha is None or self.mixup_alpha == 0:
+            return data_first, label_first
+
         if self.mixup_alpha >= 0:
             lbd = np.random.beta(self.mixup_alpha, self.mixup_alpha)
             if self.first_max and lbd < 0.5:
@@ -107,8 +106,6 @@ class MixupDataset(Dataset):
             if self.first_max and lbd > 0.5:
                 lbd = 1 - lbd
 
-        data_first = self.data_first[index]
-        label_first = self.label_first[index]
         rnd_idx = np.random.randint(len(self.data_second))
         data_rnd_ax = self.data_second[rnd_idx]
         label_rnd_ax = self.label_second[rnd_idx]

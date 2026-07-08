@@ -120,6 +120,8 @@ def iterate_repair_model(
     )
 
     agree_idx = working_inc_predicts == teacher_inc_predicts
+    if getattr(args, "disable_agreement", False):
+        agree_idx = np.zeros_like(agree_idx, dtype=bool)
     select_idx = agree_idx
     selected_data = inc_data[select_idx]
     selected_labels = teacher_inc_predicts[select_idx]
@@ -134,7 +136,8 @@ def iterate_repair_model(
 
     centroid_data, centroid_probs = [], []
 
-    for label in range(num_classes):
+    centroid_labels = [] if getattr(args, "disable_centroid", False) else range(num_classes)
+    for label in centroid_labels:
         disagree_class_idx = teacher_disagree_predicts == label
         if not np.any(disagree_class_idx):
             continue
@@ -185,7 +188,7 @@ def iterate_repair_model(
         mean=mean,
         std=std,
         batch_size=args.batch_size,
-        alpha=args.mixup_alpha,
+        alpha=None if getattr(args, "disable_mixup", False) else args.mixup_alpha,
         transforms=None,
     )
 
@@ -219,15 +222,13 @@ def iterate_repair_model(
     )
 
     # 3. Get Dconf{Xs, Ys} for adaptation: Dconf consists of the top 10% of data from Ds (sorted by Ys_prob)
-    select_probs_max = np.max(selected_probs, axis=-1)  # [N]
-    sample_size = int(len(selected_probs) * conf_ratio)
-    if sample_size > 0:
-        sample_idx = np.argpartition(select_probs_max, -sample_size)[-sample_size:]
-        conf_data = selected_data[sample_idx]
-        conf_labels = selected_probs[sample_idx]
-    else:
-        conf_data = np.empty((0, *inc_data.shape[1:]), dtype=inc_data.dtype)
-        conf_labels = np.empty((0, num_classes), dtype=teacher_inc_probs.dtype)
+    conf_data, conf_labels = select_top_confidence_per_class(
+        selected_data,
+        selected_probs,
+        selected_labels,
+        num_classes,
+        conf_ratio,
+    )
 
     return conf_data, conf_labels
 
@@ -266,7 +267,7 @@ def iterate_adapt_model(
         mean=mean,
         std=std,
         batch_size=args.batch_size,
-        alpha=args.mixup_alpha,
+        alpha=None if getattr(args, "disable_mixup", False) else args.mixup_alpha,
         transforms=None,
     )
 
@@ -297,7 +298,7 @@ def iterate_adapt_model(
         mean=mean,
         std=std,
         batch_size=args.batch_size,
-        alpha=args.mixup_alpha,
+        alpha=None if getattr(args, "disable_mixup", False) else args.mixup_alpha,
         transforms=None,
     )
 
@@ -343,6 +344,49 @@ def sharpen(prob_max, T=1, axis=-1):
     return prob_max / np.sum(prob_max, axis=-1, keepdims=True)
 
 
+def load_checkpoint_compatible(model, checkpoint_path, device, strict=False):
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        checkpoint = checkpoint["state_dict"]
+
+    target_state = model.state_dict()
+    compatible_state = dict(checkpoint)
+    for key in target_state:
+        if not key.endswith(".weight_orig") or key in compatible_state:
+            continue
+        plain_key = key[: -len("_orig")]
+        if plain_key in checkpoint:
+            compatible_state[key] = checkpoint[plain_key]
+
+    model.load_state_dict(compatible_state, strict=strict)
+
+
+def select_top_confidence_per_class(data, probs, predicted_labels, num_classes, ratio):
+    selected_data, selected_probs = [], []
+    confidence = np.max(probs, axis=-1)
+
+    for label in range(num_classes):
+        class_indices = np.flatnonzero(predicted_labels == label)
+        sample_size = int(len(class_indices) * ratio)
+        if sample_size <= 0:
+            continue
+
+        class_confidence = confidence[class_indices]
+        local_idx = np.argpartition(class_confidence, -sample_size)[-sample_size:]
+        local_idx = local_idx[np.argsort(-class_confidence[local_idx])]
+        top_idx = class_indices[local_idx]
+        selected_data.extend(data[top_idx])
+        selected_probs.extend(probs[top_idx])
+
+    if not selected_data:
+        return (
+            np.empty((0, *data.shape[1:]), dtype=data.dtype),
+            np.empty((0, probs.shape[1]), dtype=probs.dtype),
+        )
+
+    return np.array(selected_data), np.array(selected_probs)
+
+
 def evaluate_model(data_loader, model, device, args):
     return model_test(
         data_loader,
@@ -374,7 +418,7 @@ def execute(args):
     working_lr = learning_rate * lr_scale
     weight_decay = getattr(args, "weight_decay", 5e-4)
     repair_iter_num = getattr(args, "repair_iter_num", 2)
-    adapt_iter_num = getattr(args, "adapt_iter_num", 2)
+    adapt_iter_num = getattr(args, "adapt_iter_num", 3)
     optimizer_type = getattr(args, "optimizer", "adam")
     num_epochs = getattr(args, "num_epochs", 50)
     step = getattr(args, "step", 1)
@@ -382,14 +426,25 @@ def execute(args):
     uni_name = getattr(args, "uni_name", None)
     spec_norm = not args.no_spnorm
 
-    working_model_path = settings.get_ckpt_path(
+    if step is None or step < 1:
+        raise ValueError("CONTRA refinement/adaptation requires --step >= 1 after step-0 pretraining.")
+
+    previous_worker_model_path = settings.get_ckpt_path(
+        args.dataset,
+        case,
+        args.model,
+        model_suffix="worker_restore",
+        step=step - 1,
+        unique_name=uni_name,
+    )
+    raw_worker_model_path = settings.get_ckpt_path(
         args.dataset,
         case,
         args.model,
         model_suffix="worker_raw",
         step=step,
         unique_name=uni_name,
-    )  # model_paths["working_model_path"]
+    )
     working_model_repair_save_path = settings.get_ckpt_path(
         args.dataset,
         case,
@@ -438,7 +493,11 @@ def execute(args):
     # (1) load working model
     working_model = load_custom_model(args.model, num_classes, load_pretrained=False)
 
-    working_model = ClassifierWrapper(working_model, num_classes)
+    working_model = ClassifierWrapper(
+        working_model,
+        num_classes,
+        spectral_norm=getattr(args, "student_spnorm", False),
+    )
 
     working_opt, working_lr_scheduler = create_optimizer_scheduler(
         optimizer_type,
@@ -451,7 +510,7 @@ def execute(args):
     working_criterion = nn.CrossEntropyLoss()
 
     # (2) load lip_teacher model
-    backbone = load_custom_model(args.model, num_classes)
+    backbone = load_custom_model(args.model, num_classes, load_pretrained=False)
     # features = backbone.fc.in_features
     # backbone = nn.Sequential(*list(backbone.children())[:-1], nn.Flatten())
     # lip_teacher_model = SimpleLipNet(backbone, features, num_classes, spectral_norm=spec_norm)
@@ -484,32 +543,29 @@ def execute(args):
     os.makedirs(subdir, exist_ok=True)
 
     if tta_only is None:
-        checkpoint = torch.load(working_model_path)
-        working_model.load_state_dict(checkpoint, strict=False)
-        # working_model.to(device)
-
-        if os.path.exists(lip_teacher_model_path):
-            checkpoint = torch.load(lip_teacher_model_path)
-            lip_teacher_model.load_state_dict(checkpoint, strict=False)
-            print("load teacher model from :", lip_teacher_model_path)
-        else:
-            # In the case of t0, retrain the lip_teacher model using D0 data
-            print(
-                "Teacher model pth: %s not exist, only train T0, if not T0 then stop!"
-                % lip_teacher_model_path
+        if not os.path.exists(previous_worker_model_path):
+            raise FileNotFoundError(
+                f"Previous-stage student checkpoint not found: {previous_worker_model_path}. "
+                "Run run_experiment.py with --step 0 first, then run CONTRA stages in order."
             )
 
-            train_teacher_model(
-                args,
-                0,
-                num_classes,
-                lip_teacher_model,
-                teacher_opt,
-                teacher_lr_scheduler,
-                teacher_criterion,
-                lip_teacher_model_path,
-                test_dataloader=None,
-                test_per_it=1,
+        load_checkpoint_compatible(
+            working_model, previous_worker_model_path, device, strict=False
+        )
+        print("load previous-stage student model from :", previous_worker_model_path)
+
+        if os.path.exists(lip_teacher_model_path):
+            load_checkpoint_compatible(
+                lip_teacher_model, lip_teacher_model_path, device, strict=False
+            )
+            print("load teacher model from :", lip_teacher_model_path)
+        else:
+            print(
+                "Teacher model pth: %s not exist; initialize teacher from previous-stage student."
+                % lip_teacher_model_path
+            )
+            load_checkpoint_compatible(
+                lip_teacher_model, previous_worker_model_path, device, strict=False
             )
 
         # 3. Iterative repair process
@@ -603,27 +659,34 @@ def execute(args):
 
     if tta_only is not None:
         if tta_only == 0:
-            lip_teacher_model_path = settings.get_ckpt_path(
-                args.dataset,
-                case,
-                args.model,
-                model_suffix="teacher_restore",
-                step=step,
-                unique_name=uni_name,
+            if not os.path.exists(raw_worker_model_path):
+                raise FileNotFoundError(
+                    f"Current-stage raw worker checkpoint not found: {raw_worker_model_path}. "
+                    "Run run_experiment.py with --model_suffix worker_raw before --tta_only 0."
+                )
+            teacher_start_path = (
+                lip_teacher_model_path
+                if os.path.exists(lip_teacher_model_path)
+                else previous_worker_model_path
             )
-            checkpoint = torch.load(lip_teacher_model_path)
-            lip_teacher_model.load_state_dict(checkpoint, strict=False)
+            load_checkpoint_compatible(
+                lip_teacher_model, teacher_start_path, device, strict=False
+            )
+            print("load adaptation-only teacher from :", teacher_start_path)
 
-            checkpoint = torch.load(working_model_path)
-            working_model.load_state_dict(checkpoint, strict=False)
+            load_checkpoint_compatible(
+                working_model, raw_worker_model_path, device, strict=False
+            )
         else:
             conf_data = np.load(conf_data_path)
             conf_labels = np.load(conf_label_path)
 
-            checkpoint = torch.load(teacher_model_repair_save_path)
-            lip_teacher_model.load_state_dict(checkpoint, strict=False)
-            checkpoint = torch.load(working_model_repair_save_path)
-            working_model.load_state_dict(checkpoint, strict=False)
+            load_checkpoint_compatible(
+                lip_teacher_model, teacher_model_repair_save_path, device, strict=False
+            )
+            load_checkpoint_compatible(
+                working_model, working_model_repair_save_path, device, strict=False
+            )
 
             aug_data = np.concatenate([aux_data, conf_data], axis=0)
             aug_labels = np.concatenate([aux_labels_onehot, conf_labels], axis=0)

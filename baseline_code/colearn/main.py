@@ -63,6 +63,7 @@ def resolve_lnl_checkpoint(dataset, case, model_name, step, uni_name):
 
 def main():
     custom_args = parse_args()
+    os.environ["CUDA_VISIBLE_DEVICES"] = custom_args.gpu
     case = settings.get_case(
         custom_args.noise_ratio, custom_args.noise_type, custom_args.balanced
     )
@@ -158,7 +159,7 @@ def main():
     model.model2 = ClassifierWrapper(loaded_model2, num_classes)
 
     print("Loading starting checkpoint:", load_model_path)
-    checkpoint = torch.load(load_model_path)
+    checkpoint = torch.load(load_model_path, map_location=device)
     model.model1.load_state_dict(checkpoint, strict=False)
     model.model2.load_state_dict(checkpoint, strict=False)
 

@@ -47,7 +47,11 @@ def evaluate_checkpoint(args):
     )
 
     backbone = load_custom_model(args.model, num_classes, load_pretrained=False)
-    model = ClassifierWrapper(backbone, num_classes)
+    model = ClassifierWrapper(
+        backbone,
+        num_classes,
+        spectral_norm=getattr(args, "student_spnorm", False),
+    )
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint, strict=False)
 

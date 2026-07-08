@@ -5,6 +5,24 @@ from core_model.wideresidual import wideresnet
 from core_model.resnet import resnet18, resnet34, resnet50, resnet101
 
 
+SUPPORTED_MODELS = [
+    "cifar-resnet18",
+    "cifar-resnet50",
+    "cifar-resnet101",
+    "cifar-wideresnet40",
+    "resnet18",
+    "resnet50",
+    "resnet101",
+    "vgg19",
+    "wideresnet50",
+    "efficientnet_s",
+    "efficientnet_m",
+    "efficientnet_l",
+    "efficientnet_b3",
+    "efficientnet_b7",
+]
+
+
 def load_custom_model(model_name, num_classes, load_pretrained=True, ckpt_path=None):
     weights = None
     if model_name == "resnet18":
@@ -76,10 +94,12 @@ def load_custom_model(model_name, num_classes, load_pretrained=True, ckpt_path=N
     elif model_name == "cifar-wideresnet40":
         model = wideresnet(num_classes=num_classes, widen_factor=2)
     else:
-        model = None
+        raise ValueError(
+            f"Unsupported model: {model_name}. Choose one of: {', '.join(SUPPORTED_MODELS)}"
+        )
 
     if model and ckpt_path:
-        checkpoint = torch.load(ckpt_path)
+        checkpoint = torch.load(ckpt_path, map_location="cpu")
         model.load_state_dict(checkpoint, strict=False)
         print("load worker model from :", ckpt_path)
     return model

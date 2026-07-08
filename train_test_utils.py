@@ -166,6 +166,32 @@ def test_model(model, test_loader, criterion, device, epoch):
     return test_accuracy, test_loss
 
 
+def split_train_validation(data, labels, validation_ratio, seed):
+    if validation_ratio <= 0:
+        return data, labels, None, None
+
+    rng = np.random.default_rng(seed)
+    labels_np = np.asarray(labels)
+    train_indices, val_indices = [], []
+    for label in sorted(set(labels_np.tolist())):
+        class_indices = np.flatnonzero(labels_np == label)
+        if len(class_indices) <= 1:
+            train_indices.extend(class_indices.tolist())
+            continue
+        shuffled = rng.permutation(class_indices)
+        val_count = max(1, int(len(shuffled) * validation_ratio))
+        val_count = min(val_count, len(shuffled) - 1)
+        val_indices.extend(shuffled[:val_count].tolist())
+        train_indices.extend(shuffled[val_count:].tolist())
+
+    if not val_indices:
+        return data, labels, None, None
+
+    train_indices = np.asarray(train_indices, dtype=np.int64)
+    val_indices = np.asarray(val_indices, dtype=np.int64)
+    return data[train_indices], labels[train_indices], data[val_indices], labels[val_indices]
+
+
 def train_model(
     model,
     num_classes,
@@ -180,6 +206,11 @@ def train_model(
     weight_decay=5e-4,
     data_aug=False,
     dataset_name=None,
+    use_early_stopping=False,
+    early_stopping_patience=10,
+    early_stopping_accuracy_threshold=0.95,
+    validation_ratio=0.1,
+    seed=42,
     writer=None,
 ):
     """
@@ -216,6 +247,17 @@ def train_model(
             # weights.transforms()
         ]
     )
+    val_loader = None
+    if use_early_stopping:
+        data, labels, val_data, val_labels = split_train_validation(
+            data,
+            labels,
+            validation_ratio=validation_ratio,
+            seed=seed,
+        )
+        if val_data is not None:
+            val_dataset = BaseTensorDataset(val_data, val_labels)
+            val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     dataset = BaseTensorDataset(data, labels, transform_train)
     dataloader = DataLoader(
@@ -238,6 +280,10 @@ def train_model(
         cutmix_transform = v2.CutMix(alpha=alpha, num_classes=num_classes)
         mixup_transform = v2.MixUp(alpha=alpha, num_classes=num_classes)
 
+    best_state, best_accuracy, stale_epochs = None, -1.0, 0
+    eval_loader = val_loader if val_loader is not None else test_loader
+    eval_name = "Validation" if val_loader is not None else "Test"
+
     for epoch in tqdm(range(epochs), desc="Training Progress", ascii=True):
         running_loss = 0.0
         correct = 0
@@ -251,12 +297,9 @@ def train_model(
             total=len(dataloader), desc=f"Epoch {epoch + 1} Training", ascii=True
         ) as pbar:
             for inputs, targets in dataloader:
-
-                last_input, last_labels = inputs, targets
                 if len(targets) == 1:
-                    last_input[-1] = inputs
-                    last_labels[-1] = targets
-                    inputs, targets = last_input, last_labels
+                    inputs = torch.cat([inputs, inputs], dim=0)
+                    targets = torch.cat([targets, targets], dim=0)
 
                 targets = targets.to(torch.long)
 
@@ -292,15 +335,34 @@ def train_model(
             writer.add_scalar("Train/Loss", avg_loss, epoch)
             writer.add_scalar("Train/Accuracy", accuracy * 100, epoch)
 
-        test_accuracy, test_loss = test_model(
-            model, test_loader, criterion, device, epoch
-        )
+        test_accuracy, test_loss = test_model(model, eval_loader, criterion, device, epoch)
         test_accuracies.append(test_accuracy)
 
         if writer:
-            writer.add_scalar("Test/Loss", test_loss, epoch)
-            writer.add_scalar("Test/Accuracy", test_accuracy, epoch)
+            writer.add_scalar(f"{eval_name}/Loss", test_loss, epoch)
+            writer.add_scalar(f"{eval_name}/Accuracy", test_accuracy, epoch)
+
+        if use_early_stopping:
+            if test_accuracy > best_accuracy:
+                best_accuracy = test_accuracy
+                stale_epochs = 0
+                best_state = {
+                    key: value.detach().cpu().clone()
+                    for key, value in model.state_dict().items()
+                }
+            else:
+                stale_epochs += 1
+
+            if test_accuracy >= early_stopping_accuracy_threshold * 100:
+                print(f"Early stopping: reached {eval_name.lower()} threshold.")
+                break
+            if stale_epochs >= early_stopping_patience:
+                print(f"Early stopping: no {eval_name.lower()} improvement.")
+                break
 
         model.train()
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
 
     return model
