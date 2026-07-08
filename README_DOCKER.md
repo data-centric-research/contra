@@ -1,15 +1,15 @@
-# Docker Reproducibility Guide
+# Docker Setup
 
-This repository includes a pinned Docker environment for reproducing the released CONTRA code without relying on a host Python installation. The image keeps source code inside `/workspace` and expects datasets, checkpoints, logs, and run outputs to be mounted from the host.
+This repository includes a Docker environment for running CONTRA without relying on the host Python installation. Source code is copied into `/workspace`. Datasets, checkpoints, logs, and run outputs should be mounted from the host.
 
-## What Is Pinned
+## Versions
 
 - Python base image: `python:3.11.13-slim-bookworm`
 - PyTorch wheels: `torch==2.6.0`, `torchvision==0.21.0`
 - Python packaging tools: `pip==25.2`, `setuptools==80.9.0`, `wheel==0.45.1`
 - Non-PyTorch dependencies: see `requirements-docker.txt`
 
-The Docker image is portable and can run on CPU. GPU-optimized runs are possible, but CUDA images and drivers vary by machine, so they are documented separately below.
+The default image runs on CPU. GPU runs need a CUDA-compatible image and host driver.
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ Or with Docker Compose:
 docker compose build
 ```
 
-## Quick Sanity Checks
+## Checks
 
 ```bash
 docker run --rm contra-repro:cpu python -c "import torch, torchvision, numpy, sklearn; print(torch.__version__, torchvision.__version__)"
@@ -69,7 +69,7 @@ With Docker Compose:
 docker compose run --rm contra bash
 ```
 
-## Run The Paper-Style Pipeline
+## Run The Experiment Pipeline
 
 Inside the container, generate staged tensor files first. Example for CIFAR-10 with symmetric 20% label noise:
 
@@ -119,7 +119,7 @@ python run_contra.py \
   --seed 42
 ```
 
-Use the helper scripts for repeated seeds or sweeps:
+Use these scripts for repeated seeds or sweeps:
 
 ```bash
 python scripts/run_multi_seed.py --help
@@ -143,14 +143,14 @@ python scripts/evaluate_checkpoint.py \
 
 ## Data And Output Volumes
 
-The image intentionally excludes heavy or generated artifacts:
+The image excludes large experiment outputs:
 
 - `data/`
 - `ckpt/`
 - `logs/`
 - `runs/`
 
-Mount these directories from the host whenever you run experiments. This keeps the image small and makes it clear which files are code versus local experimental artifacts.
+Mount these directories from the host whenever you run experiments.
 
 ## GPU Variant
 
@@ -165,7 +165,7 @@ docker run --gpus all --rm -it \
   contra-repro:gpu bash
 ```
 
-For exact publication-grade reruns, record the host GPU model, driver version, CUDA runtime, command-line arguments, seed, and checkpoint path with each result.
+For repeatable GPU runs, record the host GPU model, driver version, CUDA runtime, command-line arguments, seed, and checkpoint path with each result.
 
 ## Troubleshooting
 

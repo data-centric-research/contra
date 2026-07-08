@@ -1,61 +1,53 @@
-# CONTRA 论文 Smoke 套件编排
+# Paper Smoke Runs
 
-54 个 job 定义见 `paper_smoke_manifest.json`，状态写入 `runs/paper_smoke_state.json`，日志在 `logs/paper_smoke/<job_id>.log`。
+This folder contains scripts for running a small set of paper-related smoke checks. The jobs are defined in `paper_smoke_manifest.json`, state is written to `runs/paper_smoke_state.json`, and logs are written to `logs/paper_smoke/<job_id>.log`.
 
-## 串行 tick（原有，兼容 /loop）
+## Single-Job Runner
 
-每轮最多跑 **1** 个 job；若已有训练进程（含外部 PLF/CoTTA 等）则 `action=wait`。
-
-```bash
-cd /Users/suizhihao/Documents/phd/thesis/papers/ICANN/contra_accept/contra
-.venv/bin/python scripts/run_paper_smoke_tick.py          # 跑 1 个
-.venv/bin/python scripts/run_paper_smoke_tick.py --status
-.venv/bin/python scripts/run_paper_smoke_tick.py --force  # 忽略负载门控
-```
-
-**/loop 唤醒命令（串行）**
+Run at most one pending job:
 
 ```bash
-cd /Users/suizhihao/Documents/phd/thesis/papers/ICANN/contra_accept/contra && \
-.venv/bin/python scripts/run_paper_smoke_tick.py
+python scripts/run_paper_smoke_tick.py
 ```
 
-返回 `action=wait` 时按 `next_sleep_sec`（默认 120s）重新 arm；`action=complete` 时停止。
-
-## 并行 runner（推荐）
+Check state:
 
 ```bash
-.venv/bin/python scripts/run_paper_smoke_parallel.py --status
-.venv/bin/python scripts/run_paper_smoke_parallel.py --dry-run
-.venv/bin/python scripts/run_paper_smoke_parallel.py --once              # 跑一批后退出
-.venv/bin/python scripts/run_paper_smoke_parallel.py --once --max-workers 2
-.venv/bin/python scripts/run_paper_smoke_parallel.py --loop              # 持续调度直到完成
+python scripts/run_paper_smoke_tick.py --status
 ```
 
-- **`--max-workers 0`（默认）**：按 CPU 负载（<70% 核数）与空闲内存（每 worker 约 3GiB，保留 3GiB）自动计算，上限 4。
-- **依赖**：同数据集链路上 `gen → s0 → raw → contra → eval` 串行；同 step 的 TTA/LNL 基线最多 **3** 个并行。
-- **跨数据集**：CIFAR-100 / Pet-37 等不同 chain 可同时跑（例如 `cifar100_asy_gen` 与 `pet37_sym_gen`）。
-- **外部训练**：通过 `pgrep` 识别已在跑的 job（如 tick 启动的 PLF），占用 worker 槽位，**不会重复启动**。
-- **状态锁**：`runs/paper_smoke_state.lock` + `running` 字段，避免并发写 state。
-
-**/loop 唤醒命令（并行，一批）**
+Run one job even when the load check would normally wait:
 
 ```bash
-cd /Users/suizhihao/Documents/phd/thesis/papers/ICANN/contra_accept/contra && \
-.venv/bin/python scripts/run_paper_smoke_parallel.py --once --max-workers 2
+python scripts/run_paper_smoke_tick.py --force
 ```
 
-负载高时返回 `action=wait`；可与串行 tick **不要同时**对同一 state 发起新 job（并行 runner 会识别外部进程并等待）。
+When the script returns `action=wait`, wait for the reported `next_sleep_sec` before starting another job. When it returns `action=complete`, the manifest has finished.
 
-## 并行度建议
+## Parallel Runner
 
-| 阶段 | 建议 `--max-workers` |
-|------|----------------------|
-| CIFAR-10 剩余基线（PLF/SoTTA） | 1（PLF 占用时）或 2 |
-| CIFAR-100 gen + Pet-37 gen 起步 | 2 |
-| 单数据集 raw/contra 链 | 1（链内独占） |
-| 多 Pet-37 noise ratio 实验 | 2–3（不同 chain） |
+Inspect the queue:
 
-## 已知 prep
+```bash
+python scripts/run_paper_smoke_parallel.py --status
+python scripts/run_paper_smoke_parallel.py --dry-run
+```
 
-- **Rehearsal**：若报 `Rehearsal/..._worker_raw.pth not found`，需先把 `step_1/cifar-resnet18_worker_raw.pth` 复制到 `step_1/Rehearsal/`（或重跑 rehearsal job，脚本会先训 raw）。
+Run one batch:
+
+```bash
+python scripts/run_paper_smoke_parallel.py --once --max-workers 2
+```
+
+Run until the manifest is complete:
+
+```bash
+python scripts/run_paper_smoke_parallel.py --loop --max-workers 2
+```
+
+Use `--max-workers 0` to let the script choose a worker count from the current CPU and memory load. The runner keeps dataset chains in order, so generation, step-0 training, raw-worker jobs, CONTRA jobs, and evaluation jobs are not started out of sequence.
+
+## Notes
+
+- Do not run the tick runner and the parallel runner against the same state file at the same time.
+- Rehearsal jobs require the stage raw-worker checkpoint for the same case and step. The manifest includes the raw-worker step before the rehearsal fine-tuning step.

@@ -85,7 +85,7 @@ def split(
     seed=42,
     force_resplit=False,
 ):
-    """Create paper-aligned initial, incremental, rehearsal, and test files."""
+    """Create initial, incremental, rehearsal, and test files."""
     raw_case = None
     train_data_path = settings.get_dataset_path(dataset_name, raw_case, "train_data")
     train_label_path = settings.get_dataset_path(dataset_name, raw_case, "train_label")

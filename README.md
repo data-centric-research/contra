@@ -139,7 +139,7 @@ data/cifar-10/gen/nr_0.2_nt_symmetric_balanced/
   step_4/train_label.npy
 ```
 
-## Paper-Aligned Backbones
+## Backbones Used in the Paper
 
 | Dataset | Backbone in the paper | `--model` value |
 | --- | --- | --- |

@@ -18,6 +18,7 @@ from paper_smoke_lib import (
     active_running,
     launch_job,
     load_ok,
+    load_state,
     locked_state,
     pick_parallel_batch,
     progress_counts,
@@ -41,7 +42,7 @@ def finish_job(job_id: str, proc, log_path: Path, started: float) -> dict:
     code = proc.wait()
     elapsed = int(time.time() - started)
     try:
-        tail = log_path.read_text().splitlines()[-8:]
+        tail = log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-8:]
     except OSError:
         tail = []
     return {
@@ -99,11 +100,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    manifest = json.loads(MANIFEST.read_text())
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     exit_code = 0
 
     if args.status:
-        state = json.loads((REPO / "runs" / "paper_smoke_state.json").read_text())
+        state = load_state()
         done, total = progress_counts(manifest, state)
         running = active_running(state, manifest)
         print(

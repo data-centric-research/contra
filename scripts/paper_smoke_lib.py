@@ -2,15 +2,27 @@
 
 from __future__ import annotations
 
-import fcntl
+import ctypes
 import json
 import os
 import re
+import shutil
 import subprocess
+import sys
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
 
 REPO = Path(__file__).resolve().parents[1]
 MANIFEST = REPO / "scripts" / "paper_smoke_manifest.json"
@@ -39,7 +51,7 @@ def utc_now() -> str:
 
 def load_state() -> dict:
     if STATE_PATH.exists():
-        return json.loads(STATE_PATH.read_text())
+        return json.loads(STATE_PATH.read_text(encoding="utf-8"))
     return default_state()
 
 
@@ -60,7 +72,34 @@ def default_state() -> dict:
 
 def save_state(state: dict) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STATE_PATH.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+    STATE_PATH.write_text(
+        json.dumps(state, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _lock_file(lock_fd) -> None:
+    if fcntl is not None:
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        return
+    if msvcrt is not None:
+        lock_fd.seek(0)
+        if lock_fd.read(1) == "":
+            lock_fd.write("0")
+            lock_fd.flush()
+        lock_fd.seek(0)
+        msvcrt.locking(lock_fd.fileno(), msvcrt.LK_LOCK, 1)
+        return
+
+
+def _unlock_file(lock_fd) -> None:
+    if fcntl is not None:
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+        return
+    if msvcrt is not None:
+        lock_fd.seek(0)
+        msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
+        return
 
 
 @contextmanager
@@ -68,35 +107,82 @@ def locked_state():
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = STATE_LOCK_PATH.open("a+")
     try:
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        _lock_file(lock_fd)
         if STATE_PATH.exists():
-            state = json.loads(STATE_PATH.read_text())
+            state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
         else:
             state = default_state()
         state.setdefault("running", {})
         yield state
         save_state(state)
     finally:
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+        _unlock_file(lock_fd)
         lock_fd.close()
+
+
+def _load_average(ncpu: int) -> float:
+    try:
+        return os.getloadavg()[0]
+    except (AttributeError, OSError):
+        return 0.0
+
+
+def _windows_free_gib() -> float | None:
+    class MemoryStatus(ctypes.Structure):
+        _fields_ = [
+            ("dwLength", ctypes.c_ulong),
+            ("dwMemoryLoad", ctypes.c_ulong),
+            ("ullTotalPhys", ctypes.c_ulonglong),
+            ("ullAvailPhys", ctypes.c_ulonglong),
+            ("ullTotalPageFile", ctypes.c_ulonglong),
+            ("ullAvailPageFile", ctypes.c_ulonglong),
+            ("ullTotalVirtual", ctypes.c_ulonglong),
+            ("ullAvailVirtual", ctypes.c_ulonglong),
+            ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+        ]
+
+    status = MemoryStatus()
+    status.dwLength = ctypes.sizeof(MemoryStatus)
+    if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        return status.ullAvailPhys / (1024**3)
+    return None
+
+
+def _free_memory_gib() -> float:
+    if sys.platform == "win32":
+        free_gib = _windows_free_gib()
+        if free_gib is not None:
+            return free_gib
+
+    meminfo = Path("/proc/meminfo")
+    if meminfo.exists():
+        for line in meminfo.read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemAvailable:"):
+                kib = int(line.split()[1])
+                return kib / (1024**2)
+
+    if shutil.which("vm_stat"):
+        vm = subprocess.check_output(["vm_stat"], text=True)
+        page_size = 16384
+        m = re.search(r"page size of (\d+)", vm)
+        if m:
+            page_size = int(m.group(1))
+        free_pages = 0
+        for key in ("Pages free", "Pages speculative"):
+            hit = re.search(rf"{re.escape(key)}:\s+(\d+)", vm)
+            if hit:
+                free_pages += int(hit.group(1).replace(".", ""))
+        return free_pages * page_size / (1024**3)
+
+    return MIN_FREE_GIB + GIB_PER_WORKER
 
 
 def system_metrics() -> dict:
     ncpu = os.cpu_count() or 4
-    load1 = os.getloadavg()[0]
+    load1 = _load_average(ncpu)
     load_ratio = load1 / ncpu
 
-    vm = subprocess.check_output(["vm_stat"], text=True)
-    page_size = 16384
-    m = re.search(r"page size of (\d+)", vm)
-    if m:
-        page_size = int(m.group(1))
-    free_pages = 0
-    for key in ("Pages free", "Pages speculative"):
-        hit = re.search(rf"{re.escape(key)}:\s+(\d+)", vm)
-        if hit:
-            free_pages += int(hit.group(1).replace(".", ""))
-    free_gib = free_pages * page_size / (1024**3)
+    free_gib = _free_memory_gib()
 
     training_pids = list_training_pids()
     return {
@@ -110,6 +196,8 @@ def system_metrics() -> dict:
 
 
 def list_training_pids() -> list[int]:
+    if shutil.which("pgrep") is None:
+        return []
     proc = subprocess.run(
         ["pgrep", "-f", TRAINING_PATTERN],
         capture_output=True,
@@ -309,7 +397,10 @@ def external_running_jobs(manifest: dict, state: dict) -> dict[str, dict]:
             continue
         cmdline = ""
         try:
-            cmdline = Path(f"/proc/{pid}/cmdline").read_text()
+            cmdline = Path(f"/proc/{pid}/cmdline").read_text(
+                encoding="utf-8",
+                errors="replace",
+            )
         except OSError:
             proc = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True)
             if proc.returncode != 0:
@@ -620,7 +711,7 @@ def run_job(job: dict, defaults: dict, python: str) -> tuple[int, str]:
         logf.write("# " + " ".join(cmd) + "\n\n")
         logf.flush()
         proc = subprocess.run(cmd, cwd=REPO, env=env, stdout=logf, stderr=subprocess.STDOUT)
-    tail = log_path.read_text().splitlines()[-8:]
+    tail = log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-8:]
     summary = "\n".join(tail)
     return proc.returncode, summary
 

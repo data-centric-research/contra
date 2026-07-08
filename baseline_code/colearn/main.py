@@ -72,7 +72,7 @@ def main():
     num_classes = settings.get_num_classes(custom_args.dataset, custom_args.num_classes)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Dynamically load the paper-aligned LNL baseline configuration.
+    # Load the selected LNL baseline configuration.
     config_modules = {
         "Coteachingplus": "co_configs.coteachingplus",
         "Coteaching": "co_configs.coteaching",

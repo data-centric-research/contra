@@ -100,7 +100,7 @@ def make_arg_parser(parser=None):
         "--balanced",
         default=False,
         action="store_true",
-        help="Use the paper-aligned balanced case name for generated data.",
+        help="Use the balanced case name used in the experiments.",
     )
 
     parser.add_argument(

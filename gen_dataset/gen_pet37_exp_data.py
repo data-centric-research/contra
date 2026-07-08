@@ -313,7 +313,7 @@ def main():
     parser.add_argument(
         "--balanced",
         action="store_true",
-        help="Use the paper-aligned balanced case name for generated data.",
+        help="Use the balanced case name used in the experiments.",
     )
     parser.add_argument(
         "--rehearsal_ratio",

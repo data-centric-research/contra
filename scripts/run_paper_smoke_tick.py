@@ -34,7 +34,7 @@ def main() -> int:
     parser.add_argument("--status", action="store_true")
     args = parser.parse_args()
 
-    manifest = json.loads(MANIFEST.read_text())
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     state = load_state()
 
     if args.status:
